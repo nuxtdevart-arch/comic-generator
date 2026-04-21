@@ -3,7 +3,9 @@ import pytest
 
 from generate_comic import (
     backoff_delay, classify_error, _fmt_srt_time,
-    estimate_duration, MIN_SCENE_DURATION, MAX_SCENE_DURATION
+    estimate_duration, MIN_SCENE_DURATION, MAX_SCENE_DURATION,
+    pick_scene_model, FLASH_MODEL, PRO_MODEL,
+    COMPLEX_SCENE_CHAR_THRESHOLD, COMPLEX_SCENE_LENGTH_CHARS,
 )
 
 
@@ -122,3 +124,34 @@ class TestEstimateDuration:
         # Implementation guarantees at least 1 word
         result = estimate_duration("")
         assert result >= MIN_SCENE_DURATION
+
+
+class TestPickSceneModel:
+    def test_force_pro_wins(self):
+        assert pick_scene_model("short", expected_chars=0, force_pro=True) == PRO_MODEL
+
+    def test_simple_scene_uses_flash(self):
+        assert pick_scene_model("short scene", expected_chars=1) == FLASH_MODEL
+
+    def test_many_characters_escalates_to_pro(self):
+        assert (
+            pick_scene_model("short", expected_chars=COMPLEX_SCENE_CHAR_THRESHOLD)
+            == PRO_MODEL
+        )
+
+    def test_one_below_threshold_stays_flash(self):
+        assert (
+            pick_scene_model("short", expected_chars=COMPLEX_SCENE_CHAR_THRESHOLD - 1)
+            == FLASH_MODEL
+        )
+
+    def test_long_scene_text_escalates_to_pro(self):
+        long_text = "x" * COMPLEX_SCENE_LENGTH_CHARS
+        assert pick_scene_model(long_text, expected_chars=0) == PRO_MODEL
+
+    def test_short_scene_text_stays_flash(self):
+        short = "x" * (COMPLEX_SCENE_LENGTH_CHARS - 1)
+        assert pick_scene_model(short, expected_chars=0) == FLASH_MODEL
+
+    def test_force_pro_overrides_simple_scene(self):
+        assert pick_scene_model("x", expected_chars=0, force_pro=True) == PRO_MODEL
