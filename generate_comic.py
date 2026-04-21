@@ -555,10 +555,17 @@ def batch_collect_scene_prompts(
             results[scene.index] = (None, model, str(resp.error))
             continue
         try:
-            data = _parse_batch_response_text(resp.response.text)
-            results[scene.index] = (data, model, None)
+            raw_data = _parse_batch_response_text(resp.response.text)
         except Exception as e:
             results[scene.index] = (None, model, f"parse failed: {e}")
+            continue
+        try:
+            data = ScenePromptResponse.model_validate(raw_data).model_dump()
+        except ValidationError as ve:
+            log.error("Batch scene %d schema fail: %s", scene.index, ve)
+            results[scene.index] = (None, model, f"schema: {ve}")
+            continue
+        results[scene.index] = (data, model, None)
     return results
 
 
