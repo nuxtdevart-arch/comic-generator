@@ -139,3 +139,96 @@ def generate_tts(voice_text: str, cfg: dict[str, Any], out_path: Path, api_key: 
         except OSError:
             pass
     raise RuntimeError(f"TTS retries exhausted: {last_err}")
+
+
+def run_tts_stage(
+    scenes: list[Any],
+    voices: dict[str, Any],
+    api_key: str,
+    audio_dir: Path,
+    save_progress_fn: Callable[[], None],
+) -> dict[str, Any]:
+    """Generate audio for scenes with status=='ok' and non-empty voice_text.
+
+    Writes audio to audio_dir/scene_NNN.mp3. Updates scene fields in place:
+    audio_path, audio_status, audio_hash, audio_duration, audio_error.
+
+    Skips scenes whose hash matches and file already exists.
+    Aborts stage when MAX_CONSECUTIVE_ERRORS hit in a row.
+
+    Returns summary dict {ok, skipped, error, aborted}.
+    """
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    summary = {"ok": 0, "skipped": 0, "error": 0, "aborted": False}
+    consecutive_errors = 0
+
+    for scene in scenes:
+        # Только успешно отрендеренные / dry-run-ok сцены с текстом для TTS
+        if scene.status != "ok":
+            continue
+        if not scene.voice_text:
+            scene.audio_status = "skipped"
+            summary["skipped"] += 1
+            save_progress_fn()
+            continue
+
+        try:
+            cfg = resolve_voice(scene.speaker, voices)
+        except ValueError as e:
+            scene.audio_status = "error"
+            scene.audio_error = f"resolve_voice failed: {e}"
+            summary["error"] += 1
+            consecutive_errors += 1
+            save_progress_fn()
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                log.error("TTS: %d consecutive errors, aborting stage", consecutive_errors)
+                summary["aborted"] = True
+                return summary
+            continue
+
+        h = voice_hash(scene.voice_text, cfg)
+        out_path = audio_dir / f"scene_{scene.index:03d}.mp3"
+
+        # Cache hit?
+        if scene.audio_hash == h and out_path.exists():
+            scene.audio_path = str(out_path)
+            # Обновим duration на всякий случай (если раньше не сохранили)
+            if not scene.audio_duration:
+                try:
+                    scene.audio_duration = audio_duration(out_path)
+                except Exception as e:
+                    log.warning("audio_duration read failed for %s: %s", out_path, e)
+            summary["skipped"] += 1
+            consecutive_errors = 0
+            save_progress_fn()
+            continue
+
+        # Generate
+        try:
+            generate_tts(scene.voice_text, cfg, out_path, api_key)
+            scene.audio_path = str(out_path)
+            scene.audio_hash = h
+            scene.audio_status = "ok"
+            scene.audio_error = ""
+            try:
+                scene.audio_duration = audio_duration(out_path)
+            except Exception as e:
+                log.warning("audio_duration read failed for scene %d: %s", scene.index, e)
+                scene.audio_duration = 0.0
+            summary["ok"] += 1
+            consecutive_errors = 0
+        except Exception as e:
+            scene.audio_status = "error"
+            scene.audio_error = str(e)[:500]
+            summary["error"] += 1
+            consecutive_errors += 1
+            log.error("TTS scene %d failed: %s", scene.index, e)
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                log.error("TTS: %d consecutive errors, aborting stage", consecutive_errors)
+                summary["aborted"] = True
+                save_progress_fn()
+                return summary
+        finally:
+            save_progress_fn()
+
+    return summary

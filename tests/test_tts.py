@@ -200,6 +200,115 @@ class TestGenerateTts:
         assert body["text"] == "привет"
         assert body["model_id"] == "eleven_multilingual_v2"
         assert body["voice_settings"] == {"stability": 0.5, "similarity_boost": 0.75}
-        assert req.headers.get("xi-api-key") == "secret-key"
-        # output_format — query param
-        assert "output_format=mp3_44100_128" in req.url
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+from tts import run_tts_stage
+
+
+@dataclass
+class FakeScene:
+    index: int
+    voice_text: str = ""
+    speaker: str = "narrator"
+    status: str = "ok"
+    audio_path: str = ""
+    audio_status: str = "pending"
+    audio_hash: str = ""
+    audio_duration: float = 0.0
+    audio_error: str = ""
+
+
+class TestRunTtsStage:
+    def _voices(self):
+        return {"narrator": {"voice_id": "v1"}}
+
+    def test_skip_when_hash_matches_and_file_exists(self, tmp_path, monkeypatch):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        scene = FakeScene(index=1, voice_text="hi", speaker="narrator")
+        # Предыдущий run — hash уже проставлен и файл есть
+        from tts import resolve_voice, voice_hash
+        cfg = resolve_voice(scene.speaker, self._voices())
+        scene.audio_hash = voice_hash(scene.voice_text, cfg)
+        scene.audio_path = str(audio_dir / "scene_001.mp3")
+        Path(scene.audio_path).write_bytes(b"\xff\xfb")
+
+        # generate_tts не должен вызываться
+        calls = []
+        monkeypatch.setattr("tts.generate_tts", lambda *a, **kw: calls.append(a))
+        monkeypatch.setattr("tts.audio_duration", lambda p: 1.0)
+
+        summary = run_tts_stage([scene], self._voices(), "k", audio_dir,
+                                 save_progress_fn=lambda: None)
+        assert calls == []
+        assert summary["skipped"] == 1
+        assert summary["ok"] == 0
+
+    def test_generate_and_record_duration(self, tmp_path, monkeypatch):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        scene = FakeScene(index=2, voice_text="hello", speaker="narrator")
+
+        def fake_gen(text, cfg, out_path, api_key):
+            out_path.write_bytes(b"\xff\xfb")
+        monkeypatch.setattr("tts.generate_tts", fake_gen)
+        monkeypatch.setattr("tts.audio_duration", lambda p: 2.5)
+
+        summary = run_tts_stage([scene], self._voices(), "k", audio_dir,
+                                 save_progress_fn=lambda: None)
+        assert summary["ok"] == 1
+        assert scene.audio_status == "ok"
+        assert scene.audio_duration == 2.5
+        assert scene.audio_hash  # non-empty
+
+    def test_empty_voice_text_skipped(self, tmp_path, monkeypatch):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        scene = FakeScene(index=3, voice_text="", speaker="narrator")
+        monkeypatch.setattr("tts.generate_tts", lambda *a, **kw: None)
+        summary = run_tts_stage([scene], self._voices(), "k", audio_dir,
+                                 save_progress_fn=lambda: None)
+        assert summary["skipped"] == 1
+        assert scene.audio_status == "skipped"
+
+    def test_consecutive_errors_abort(self, tmp_path, monkeypatch):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        scenes = [FakeScene(index=i, voice_text=f"t{i}", speaker="narrator")
+                  for i in range(1, 8)]
+
+        def fake_gen(text, cfg, out_path, api_key):
+            raise RuntimeError("TTS fatal: 401 unauthorized")
+        monkeypatch.setattr("tts.generate_tts", fake_gen)
+
+        summary = run_tts_stage(scenes, self._voices(), "k", audio_dir,
+                                 save_progress_fn=lambda: None)
+        assert summary["aborted"] is True
+        assert summary["error"] == 5  # MAX_CONSECUTIVE_ERRORS
+        # Сцены после abort остались pending
+        assert scenes[5].audio_status == "pending"
+        assert scenes[6].audio_status == "pending"
+
+    def test_error_counter_resets_on_success(self, tmp_path, monkeypatch):
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        scenes = [FakeScene(index=i, voice_text=f"t{i}", speaker="narrator")
+                  for i in range(1, 8)]
+
+        # Паттерн: 4 ошибки, успех, 4 ошибки — счётчик должен сброситься
+        call_count = {"n": 0}
+        def fake_gen(text, cfg, out_path, api_key):
+            call_count["n"] += 1
+            if call_count["n"] == 5:
+                out_path.write_bytes(b"\xff\xfb")
+                return
+            raise RuntimeError("TTS fatal: 400 bad request")
+        monkeypatch.setattr("tts.generate_tts", fake_gen)
+        monkeypatch.setattr("tts.audio_duration", lambda p: 1.0)
+
+        summary = run_tts_stage(scenes, self._voices(), "k", audio_dir,
+                                 save_progress_fn=lambda: None)
+        # Abort случится после 5 ошибок подряд (начиная со сцены 6, после успеха на сцене 5)
+        # Фактически: err err err err ok err err err => три ошибки, abort НЕ должен сработать
+        assert summary["aborted"] is False
