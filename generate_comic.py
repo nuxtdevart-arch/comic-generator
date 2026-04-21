@@ -339,7 +339,8 @@ def split_story(client: genai.Client, story: str, model: str) -> list[Scene]:
     data = call_llm_json(client, model,
                          SPLIT_PROMPT.format(story=story),
                          system=SPLIT_SYSTEM,
-                         deterministic=True)
+                         deterministic=True,
+                         schema=SplitResponse)
     scenes = []
     for i, s in enumerate(data.get("scenes", []), start=1):
         scenes.append(Scene(index=i,
