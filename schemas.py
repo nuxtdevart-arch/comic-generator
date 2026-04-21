@@ -62,3 +62,19 @@ class ScenePromptResponse(_Base):
             if len(line) > 42:
                 raise ValueError(f"subtitle line exceeds 42 chars: {line!r}")
         return v
+
+
+# ── 4. design_spec ───────────────────────────────────────────────────
+class DesignSpec(_Base):
+    font_family: str = Field(min_length=1)
+    font_weight: int = Field(ge=100, le=900)
+    font_size_px: int = Field(ge=12, le=200)
+    color_fg: str = Field(pattern=r"^#[0-9A-Fa-f]{6,8}$")
+    color_bg_gradient: list[str] = Field(min_length=2, max_length=2)
+    stroke_px: int = Field(ge=0)
+    stroke_color: str = Field(pattern=r"^#[0-9A-Fa-f]{6,8}$")
+    position: str = Field(min_length=1)
+    margin_bottom_pct: int = Field(ge=0, le=50)
+    narrator_style: str = "italic"
+    dialogue_style: str = "regular"
+    rationale: str = ""

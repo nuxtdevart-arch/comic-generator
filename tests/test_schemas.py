@@ -139,3 +139,74 @@ class TestScenePromptResponse:
         for p in ("slow", "normal", "fast"):
             result = ScenePromptResponse.model_validate(dict(SCENE_OK, pacing=p))
             assert result.pacing == p
+
+
+from schemas import DesignSpec
+
+
+DESIGN_OK = {
+    "font_family": "PT Sans Narrow",
+    "font_weight": 600,
+    "font_size_px": 42,
+    "color_fg": "#E8C77D",
+    "color_bg_gradient": ["#000000CC", "#00000000"],
+    "stroke_px": 2,
+    "stroke_color": "#000000",
+    "position": "bottom_centered",
+    "margin_bottom_pct": 8,
+    "narrator_style": "italic",
+    "dialogue_style": "regular",
+    "rationale": "high contrast for Soviet comic-noir",
+}
+
+
+class TestDesignSpec:
+    def test_happy_path(self):
+        result = DesignSpec.model_validate(DESIGN_OK)
+        assert result.font_family == "PT Sans Narrow"
+        assert result.color_bg_gradient == ["#000000CC", "#00000000"]
+
+    def test_color_without_hash_rejected(self):
+        bad = dict(DESIGN_OK, color_fg="E8C77D")
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_color_too_short_rejected(self):
+        bad = dict(DESIGN_OK, color_fg="#ABC")
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_weight_out_of_range(self):
+        bad = dict(DESIGN_OK, font_weight=1000)
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_size_out_of_range(self):
+        bad = dict(DESIGN_OK, font_size_px=5)
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_gradient_single_color_rejected(self):
+        bad = dict(DESIGN_OK, color_bg_gradient=["#000000CC"])
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_gradient_three_colors_rejected(self):
+        bad = dict(DESIGN_OK, color_bg_gradient=["#111", "#222", "#333"])
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_margin_out_of_range(self):
+        bad = dict(DESIGN_OK, margin_bottom_pct=80)
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_stroke_negative_rejected(self):
+        bad = dict(DESIGN_OK, stroke_px=-1)
+        with pytest.raises(ValidationError):
+            DesignSpec.model_validate(bad)
+
+    def test_extra_field_allowed(self):
+        ok = dict(DESIGN_OK, letter_spacing_px=1.5)
+        result = DesignSpec.model_validate(ok)
+        assert result.font_family == "PT Sans Narrow"
