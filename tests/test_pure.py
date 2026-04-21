@@ -1,7 +1,7 @@
 """Characterization tests for pure functions in generate_comic."""
 import pytest
 
-from generate_comic import classify_error
+from generate_comic import backoff_delay, classify_error
 
 
 class TestClassifyError:
@@ -41,3 +41,36 @@ class TestClassifyError:
     def test_no_retry_after_when_not_present(self):
         _, retry_after = classify_error(RuntimeError("503 UNAVAILABLE"))
         assert retry_after is None
+
+
+class TestBackoffDelay:
+    def test_retry_after_honored_with_jitter(self):
+        delays = [backoff_delay(0, "rate_limit", retry_after=30) for _ in range(20)]
+        # Jitter is +0.5 to +3.0 seconds on top of retry_after
+        assert all(30.5 <= d <= 33.0 for d in delays)
+
+    def test_overload_grows_exponentially(self):
+        # With no retry_after, bounded between base and exp(cap)
+        d0 = [backoff_delay(0, "overload") for _ in range(30)]
+        d3 = [backoff_delay(3, "overload") for _ in range(30)]
+        # Higher attempt means higher upper bound
+        assert max(d3) > max(d0)
+
+    def test_overload_cap_is_300(self):
+        # Cap for overload/rate_limit is 300s
+        delays = [backoff_delay(20, "overload") for _ in range(30)]
+        assert all(d <= 300.0 for d in delays)
+
+    def test_server_cap_is_120(self):
+        # Cap for non-overload kinds is 120s
+        delays = [backoff_delay(20, "server") for _ in range(30)]
+        assert all(d <= 120.0 for d in delays)
+
+    def test_overload_starts_higher_than_server(self):
+        # base * 4 for overload means average delay is higher
+        over = [backoff_delay(0, "overload") for _ in range(100)]
+        serv = [backoff_delay(0, "server") for _ in range(100)]
+        assert sum(over) / len(over) > sum(serv) / len(serv)
+
+    def test_returns_float(self):
+        assert isinstance(backoff_delay(0, "server"), float)
