@@ -1,7 +1,10 @@
 """Characterization tests for pure functions in generate_comic."""
 import pytest
 
-from generate_comic import backoff_delay, classify_error, _fmt_srt_time
+from generate_comic import (
+    backoff_delay, classify_error, _fmt_srt_time,
+    estimate_duration, MIN_SCENE_DURATION, MAX_SCENE_DURATION
+)
 
 
 class TestClassifyError:
@@ -93,3 +96,29 @@ class TestFmtSrtTime:
         # SRT uses comma, not dot, before milliseconds
         assert "," in _fmt_srt_time(1.234)
         assert "." not in _fmt_srt_time(1.234)
+
+
+class TestEstimateDuration:
+    def test_min_duration_floor(self):
+        # Short text clamps to MIN_SCENE_DURATION
+        assert estimate_duration("a") >= MIN_SCENE_DURATION
+
+    def test_max_duration_cap(self):
+        # Very long text clamps to MAX_SCENE_DURATION
+        long_text = "слово " * 500
+        assert estimate_duration(long_text) <= MAX_SCENE_DURATION
+
+    def test_pacing_order(self):
+        text = "один два три четыре пять шесть семь восемь девять десять"
+        slow = estimate_duration(text, "slow")
+        normal = estimate_duration(text, "normal")
+        fast = estimate_duration(text, "fast")
+        assert slow >= normal >= fast
+
+    def test_returns_float(self):
+        assert isinstance(estimate_duration("hello world"), float)
+
+    def test_empty_string_uses_min_one_word(self):
+        # Implementation guarantees at least 1 word
+        result = estimate_duration("")
+        assert result >= MIN_SCENE_DURATION
