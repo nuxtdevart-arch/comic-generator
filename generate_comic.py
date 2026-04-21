@@ -765,7 +765,8 @@ def generate_design_spec(client: genai.Client, story: str,
                              excerpt=story[:2000],
                              style=STYLE_SUFFIX),
                          system=DESIGN_SPEC_SYSTEM,
-                         deterministic=True)
+                         deterministic=True,
+                         schema=DesignSpec)
     out_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
