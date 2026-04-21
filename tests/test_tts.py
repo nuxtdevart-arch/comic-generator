@@ -133,7 +133,7 @@ class TestAudioDuration:
         # Но чтобы не тянуть бинарник в репо, используем готовый файл при smoke-тесте
         # и параметризуем этот тест через pytest.importorskip fallback.
         pytest.importorskip("mutagen.mp3")
-        fixture = tmp_path.parent / "fixtures" / "silence_1s.mp3"
+        fixture = Path(__file__).parent / "fixtures" / "silence_1s.mp3"
         if not fixture.exists():
             pytest.skip(f"fixture missing: {fixture}")
         dur = audio_duration(fixture)
