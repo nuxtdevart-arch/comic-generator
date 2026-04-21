@@ -1,1 +1,296 @@
-{}
+{
+  "aleksey_38": {
+    "name": "Алексей Геннадьевич Мороз",
+    "reference_image": "references/aleksey_38.png",
+    "description": "A man of thirty-eight years old, with a tired build and prominent dark circles under his eyes that never seem to fade. His face shows the weariness of his profession. His hair is likely short and unremarkable, and his eyes are observant but weary. He wears a standard-issue, institutional uniform, described as the color of 'unfulfilled hopes'. On his left wrist, he wears a Soviet-era 'Vostok' watch, inherited from his grandfather. On his right wrist, there's a fresh bite mark from today. He is a senior orderly in a psychiatric hospital.",
+    "_auto_generated": true
+  },
+  "aleksey_8": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_8.png",
+    "description": "An eight-year-old boy, quiet and observant. He is not described as physically robust or frail, but rather as a child who prefers to watch rather than participate. His clothing would be typical for a child in Saratov, Russia, in 1994, likely simple and practical.",
+    "_auto_generated": true
+  },
+  "aleksey_17": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_17.png",
+    "description": "A seventeen-year-old young man, not yet hardened by his future profession. He is described as confident in his decision to work as an orderly, but likely still somewhat naive. His build would be that of a young adult, and he would wear the standard institutional uniform for orderlies, though perhaps it would fit him less comfortably than it does later in life.",
+    "_auto_generated": true
+  },
+  "aleksey_19": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_19.png",
+    "description": "A nineteen-year-old man, no longer a novice in his role as an orderly. He has gained some experience and the approval of his senior colleagues. His appearance would still be relatively young, but with a growing sense of responsibility and the beginnings of the weariness that will define him later. He wears the standard orderly uniform.",
+    "_auto_generated": true
+  },
+  "aleksey_21": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_21.png",
+    "description": "A twenty-one-year-old man, now promoted to senior orderly. He is still young but carries the weight of his new position and the experiences of four years in the hospital. His face would show a developing seriousness, and he would wear the standard orderly uniform, likely with a sense of belonging.",
+    "_auto_generated": true
+  },
+  "aleksey_33": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_33.png",
+    "description": "A thirty-three-year-old man, deeply entrenched in his profession. His appearance would reflect years of demanding work, with visible signs of fatigue. He wears the standard orderly uniform and carries himself with the quiet authority of someone who understands his environment intimately.",
+    "_auto_generated": true
+  },
+  "aleksey_36": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_36.png",
+    "description": "A thirty-six-year-old man, still working as a senior orderly. His appearance is marked by the cumulative effect of his work, likely showing more pronounced signs of weariness. He wears the standard orderly uniform and has a demeanor of quiet competence and deep understanding of his patients.",
+    "_auto_generated": true
+  },
+  "aleksey_37": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_37.png",
+    "description": "A thirty-seven-year-old man, facing a significant life decision. His appearance would be similar to his 38-year-old self, with visible signs of fatigue and the weight of his experiences. He wears the standard orderly uniform, and his expression might convey a sense of internal conflict.",
+    "_auto_generated": true
+  },
+  "gennadiy_ivanovich": {
+    "name": "Геннадий Иванович",
+    "reference_image": "references/gennadiy_ivanovich.png",
+    "description": "A factory worker, Aleksey's father. He is described as having strong, calloused hands from his work as a press operator. He is a quiet man who comes home from work, sits in front of the TV, and watches it with the expression of someone who has given up. He does not drink or shout. His age is not specified but he is a middle-aged working man in the 1980s-2000s.",
+    "_auto_generated": true
+  },
+  "mother_aleksey": {
+    "name": "Мать Алексея",
+    "reference_image": "references/mother_aleksey.png",
+    "description": "Aleksey's mother, who worked in a school cafeteria. She always smelled of fried onions and laundry soap. She is a loving woman, but her love is described as turning into a sense of duty. Her age is not specified but she is a middle-aged woman in the 1980s-2000s, later an elderly woman.",
+    "_auto_generated": true
+  },
+  "tamara_mikhaylovna": {
+    "name": "Тамара Михайловна",
+    "reference_image": "references/tamara_mikhaylovna.png",
+    "description": "A kindergarten teacher, Aleksey's educator. Her age is not specified, but she is a professional working with young children. She is observant enough to note Aleksey's serious nature.",
+    "_auto_generated": true
+  },
+  "dimka_frolov": {
+    "name": "Димка Фролов",
+    "reference_image": "references/dimka_frolov.png",
+    "description": "A schoolmate of Aleksey from a parallel class. He is known for fighting every day. His age would be similar to Aleksey's during their school years.",
+    "_auto_generated": true
+  },
+  "stanislav_petrovich": {
+    "name": "Станислав Петрович",
+    "reference_image": "references/stanislav_petrovich.png",
+    "description": "A biology teacher at Aleksey's school. He is a practical man who questions Aleksey's plan to become a psychiatrist, highlighting the need for a plan to get into medical academy. His age is not specified, but he is an experienced teacher.",
+    "_auto_generated": true
+  },
+  "dyadya_kolya": {
+    "name": "Дядя Коля",
+    "reference_image": "references/dyadya_kolya.png",
+    "description": "A neighbor of Aleksey's family, appearing in 1994 when Aleksey is eight. He sometimes stands in the yard in his pajamas, looking at the sky and talking to pigeons. He is perceived as 'crazy' by adults and feared by children. His age is not specified, but he is an adult man.",
+    "_auto_generated": true
+  },
+  "vitaliy_stepanovich_gromov": {
+    "name": "Виталий Степанович Громов",
+    "reference_image": "references/vitaliy_stepanovich_gromov.png",
+    "description": "The head of the department where Aleksey starts working. He is a burly man with a mustache like Budyonny (a famous Soviet military commander). He is an experienced professional who gives Aleksey a memorable warning about working in the hospital. His age is not specified, but he is an older, established figure.",
+    "_auto_generated": true
+  },
+  "ivan_fedorovich_syrovatko": {
+    "name": "Иван Фёдорович Сыроватко",
+    "reference_image": "references/ivan_fedorovich_syrovatko.png",
+    "description": "A senior orderly who worked in the hospital for twenty-three years and mentors Aleksey. He is a small, wiry man around fifty years old, with the face of someone who has seen everything and long ceased to be surprised. He is methodical and pragmatic.",
+    "_auto_generated": true
+  },
+  "viktor_anatolyevich": {
+    "name": "Виктор Анатольевич",
+    "reference_image": "references/viktor_anatolyevich.png",
+    "description": "A patient in the psychiatric hospital, suffering from paranoid schizophrenia. He is seventy years old when Aleksey first meets him. He is described as neatly explaining that Aleksey is an FSB agent. He is an elderly man, a long-term resident of the hospital.",
+    "_auto_generated": true
+  },
+  "petya": {
+    "name": "Петя",
+    "reference_image": "references/petya.png",
+    "description": "A patient in the psychiatric hospital. He is thirty years old but looks fifty. He silently stares out the window all day. His appearance suggests premature aging due to his condition.",
+    "_auto_generated": true
+  },
+  "nikolay_borisovich": {
+    "name": "Николай Борисович",
+    "reference_image": "references/nikolay_borisovich.png",
+    "description": "A patient in the psychiatric hospital. He reads a newspaper from 1997 and retells the news as if it were fresh, complaining about gas prices. His age is not specified, but he is an adult man with a chronic condition.",
+    "_auto_generated": true
+  },
+  "grisha_25": {
+    "name": "Гриша",
+    "reference_image": "references/grisha_25.png",
+    "description": "A patient in the psychiatric hospital. He is twenty-five years old when Aleksey first meets him, but looks younger than both Aleksey (17) and his own age. He is small, with prominent ears, and eyes that hold a constant, quiet panic. He has been ill since fourteen and in the hospital for three years. He is polite and human in his interactions.",
+    "_auto_generated": true
+  },
+  "grisha_32": {
+    "name": "Гриша",
+    "reference_image": "references/grisha_32.png",
+    "description": "A patient in the psychiatric hospital, now thirty-two years old. He is being discharged after ten years in the hospital. His appearance would still be somewhat youthful, but with the signs of his long-term illness and institutionalization. He waves goodbye to Aleksey.",
+    "_auto_generated": true
+  },
+  "grisha_40": {
+    "name": "Гриша",
+    "reference_image": "references/grisha_40.png",
+    "description": "A patient in the psychiatric hospital, now forty years old, in his fourth hospitalization. His appearance would show the passage of time and the toll of his illness, but he retains his quiet, observant nature, capable of sensing Aleksey's fatigue.",
+    "_auto_generated": true
+  },
+  "tanya_20": {
+    "name": "Таня",
+    "reference_image": "references/tanya_20.png",
+    "description": "A nurse, twenty years old, fresh out of college. She has shoulder-length hair and is constantly chewing something while on duty, yet manages to look serious. She is unafraid of the patients and talks to them. She is Aleksey's future wife.",
+    "_auto_generated": true
+  },
+  "kolya_night_orderly": {
+    "name": "Коля",
+    "reference_image": "references/kolya_night_orderly.png",
+    "description": "A night orderly, described as a good man who tends to exaggerate. His age is not specified, but he is a colleague of Aleksey.",
+    "_auto_generated": true
+  },
+  "dima_new_patient": {
+    "name": "Дима",
+    "reference_image": "references/dima_new_patient.png",
+    "description": "A new patient, admitted a week ago with an acute episode. He cried quietly all night. His age is not specified, but he is a young adult, as he is later described as thirty years old when he bit Aleksey in 2007.",
+    "_auto_generated": true
+  },
+  "sonya_0": {
+    "name": "Соня",
+    "reference_image": "references/sonya_0.png",
+    "description": "Aleksey and Tanya's daughter, born in 2009. As an infant, she is cared for by her mother and grandmother.",
+    "_auto_generated": true
+  },
+  "sonya_4": {
+    "name": "Соня",
+    "reference_image": "references/sonya_4.png",
+    "description": "Aleksey and Tanya's daughter, four years old. She is described as calling her father 'papa-tired'.",
+    "_auto_generated": true
+  },
+  "sonya_9": {
+    "name": "Соня",
+    "reference_image": "references/sonya_9.png",
+    "description": "Aleksey and Tanya's daughter, nine years old. She is intelligent and serious beyond her years, like her father. She asks probing questions and keeps a notebook for 'important thoughts'.",
+    "_auto_generated": true
+  },
+  "sonya_11": {
+    "name": "Соня",
+    "reference_image": "references/sonya_11.png",
+    "description": "Aleksey and Tanya's daughter, eleven years old. She is attending school online during the pandemic.",
+    "_auto_generated": true
+  },
+  "sonya_14": {
+    "name": "Соня",
+    "reference_image": "references/sonya_14.png",
+    "description": "Aleksey and Tanya's daughter, fourteen years old. She is at an age where her mother considers moving to another country for her schooling.",
+    "_auto_generated": true
+  },
+  "boris_arkadyevich": {
+    "name": "Борис Аркадьевич",
+    "reference_image": "references/boris_arkadyevich.png",
+    "description": "The new chief physician, younger than Vitaliy Stepanovich. He has a management education and a habit of using the word 'efficiency'. He is responsible for implementing reforms that lead to staff reductions. His age is not specified, but he is a younger, modern administrator.",
+    "_auto_generated": true
+  },
+  "seryoga": {
+    "name": "Серёга",
+    "reference_image": "references/seryoga.png",
+    "description": "An orderly, colleague of Aleksey. He is one of the few remaining orderlies after reforms and works long shifts. He later leaves to work in security. His age is not specified, but he is a contemporary of Aleksey.",
+    "_auto_generated": true
+  },
+  "dima_patient_30": {
+    "name": "Дима",
+    "reference_image": "references/dima_patient_30.png",
+    "description": "A patient in the psychiatric hospital, thirty years old in 2017, having been in the department for ten years with interruptions. He is the same patient who bit Aleksey in 2007. During a period of remission, he is quiet, neat, and voluntarily helps set the table.",
+    "_auto_generated": true
+  },
+  "dima_patient_36": {
+    "name": "Дима",
+    "reference_image": "references/dima_patient_36.png",
+    "description": "A patient in the psychiatric hospital, thirty-six years old. He is in remission and has started drawing. His appearance would reflect his long history with the illness but also his current period of stability.",
+    "_auto_generated": true
+  },
+  "nina_vasilyevna": {
+    "name": "Нина Васильевна",
+    "reference_image": "references/nina_vasilyevna.png",
+    "description": "The cook at the hospital cafeteria. She bakes pies for a farewell dinner. Her age is not specified, but she is an established staff member.",
+    "_auto_generated": true
+  },
+  "andrey_viktorovich": {
+    "name": "Андрей Викторович",
+    "reference_image": "references/andrey_viktorovich.png",
+    "description": "A new patient, fifty-two years old, a former engineer. He is experiencing his first episode of acute psychosis. His appearance would be that of a man who was 'normal' his whole life, now disoriented and confused by his illness and surroundings.",
+    "_auto_generated": true
+  },
+  "kostya": {
+    "name": "Костя",
+    "reference_image": "references/kostya.png",
+    "description": "A new orderly, twenty-three years old, recently out of the army. He is initially unconfident and awkward with patients, similar to how Aleksey was at his age. He is mentored by Aleksey and learns quickly.",
+    "_auto_generated": true
+  },
+  "sasha_patient": {
+    "name": "Саша",
+    "reference_image": "references/sasha_patient.png",
+    "description": "A patient from ward twelve. He monotonously bangs his head against the wall every night. His age is not specified, but he is a long-term patient with a chronic condition, characterized by constant quiet panic in his eyes.",
+    "_auto_generated": true
+  },
+  "kolyana_cousin": {
+    "name": "Колян",
+    "reference_image": "references/kolyana_cousin.png",
+    "description": "Aleksey's cousin, whom he sees infrequently. He is a typical relative, making small talk and expressing common sentiments about Aleksey's work. His age is not specified, but he is an adult.",
+    "_auto_generated": true
+  },
+  "tamara_mihaylovna": {
+    "name": "Тамара Михайловна",
+    "reference_image": "references/tamara_mihaylovna.png",
+    "description": "Aleksey's kindergarten teacher. She is a middle-aged woman, likely in her 30s or 40s, with a professional but caring demeanor. She noted Aleksey's unusual seriousness and observational skills in his character assessment.",
+    "_auto_generated": true
+  },
+  "ivan_fyodorovich_syrovatko": {
+    "name": "Иван Фёдорович Сыроватко",
+    "reference_image": "references/ivan_fyodorovich_syrovatko.png",
+    "description": "A senior orderly who has worked at the hospital for twenty-three years. He is a small, wiry man in his early 50s, with a face that suggests he has seen everything and is no longer surprised by anything. He is methodical and pragmatic, teaching Aleksey the core rules of the job: 'don't be afraid and don't pity.'",
+    "_auto_generated": true
+  },
+  "victor_anatolyevich": {
+    "name": "Виктор Анатольевич",
+    "reference_image": "references/victor_anatolyevich.png",
+    "description": "A 70-year-old patient with paranoid schizophrenia. He is meticulous and believes Aleksey is an FSB agent he has 'figured out.' He is a long-term resident of the ward, and Aleksey develops a routine of interacting with him to calm him down.",
+    "_auto_generated": true
+  },
+  "grisha": {
+    "name": "Гриша",
+    "reference_image": "references/grisha.png",
+    "description": "A 25-year-old patient, though he looks younger, with small, prominent ears and eyes filled with quiet panic. He has been ill since he was fourteen and has been in the hospital for three years. He is one of the first patients Aleksey connects with on a human level, and remains a recurring figure throughout Aleksey's career.",
+    "_auto_generated": true
+  },
+  "tanya": {
+    "name": "Таня",
+    "reference_image": "references/tanya.png",
+    "description": "A nurse who joins the hospital after college. She is 20 years old, with shoulder-length hair, and has a habit of chewing gum while on duty, yet maintaining a serious demeanor. She is not afraid of patients and talks to them directly. She is intelligent and shares Aleksey's passion for literature, leading to their eventual relationship.",
+    "_auto_generated": true
+  },
+  "kolya_orderly": {
+    "name": "Коля",
+    "reference_image": "references/kolya_orderly.png",
+    "description": "A night orderly who is described as a 'good guy' but prone to exaggeration. He reports on the night's events to Aleksey during the shift change. He is likely in his 30s or 40s.",
+    "_auto_generated": true
+  },
+  "sonya": {
+    "name": "Соня",
+    "reference_image": "references/sonya.png",
+    "description": "Aleksey and Tanya's daughter. She is described as smart and serious for her age. At 11 years old, she is attending online school during the pandemic. By age 14, she is thoughtful and asks profound questions about her father's work.",
+    "_auto_generated": true
+  },
+  "dima_patient_older": {
+    "name": "Дима",
+    "reference_image": "references/dima_patient_older.png",
+    "description": "The same patient who bit Aleksey in 2007, now 30 years old and has been in the ward for ten years with breaks. During a remission period, he helps with meal preparation. He asks Aleksey if he has always worked there, showing a long-term recognition of Aleksey's presence.",
+    "_auto_generated": true
+  },
+  "andrey_victorovich": {
+    "name": "Андрей Викторович",
+    "reference_image": "references/andrey_victorovich.png",
+    "description": "A new patient admitted in 2019, a 52-year-old former engineer experiencing his first acute psychotic episode. He is disoriented and struggling to understand his situation. Aleksey works with him cautiously, offering reassurance.",
+    "_auto_generated": true
+  },
+  "kolyan": {
+    "name": "Колян",
+    "reference_image": "references/kolyan.png",
+    "description": "Aleksey's cousin, whom he sees only once every five years. He is likely in his late 30s or 40s and makes a dismissive comment about Aleksey's long tenure at the hospital.",
+    "_auto_generated": true
+  }
+}
