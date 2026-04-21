@@ -855,7 +855,8 @@ def export_srt(scenes: list[Scene], out_path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--story", required=True, help="Path to story.txt")
+    ap.add_argument("--story", required=False, default=None,
+                    help="Path to story.txt (required unless --tts-only)")
     ap.add_argument("--characters", default="characters.json")
     ap.add_argument("--output-dir", default="output")
     ap.add_argument("--dry-run", action="store_true",
@@ -883,6 +884,9 @@ def main():
     ap.add_argument("--voices", default="voices.json", type=Path,
                     help="Path to voices.json mapping speakers to ElevenLabs voice configs")
     args = ap.parse_args()
+
+    if not args.tts_only and not args.story:
+        sys.exit("ERROR: --story required unless --tts-only is set")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -912,14 +916,6 @@ def main():
 
     client = genai.Client(api_key=api_key)
 
-    story = Path(args.story).read_text(encoding="utf-8")
-    chars_path = Path(args.characters)
-    if chars_path.exists():
-        characters = json.loads(chars_path.read_text(encoding="utf-8"))
-    else:
-        characters = {}
-        chars_path.write_text("{}", encoding="utf-8")
-
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     progress_path = out_dir / "progress.json"
@@ -927,6 +923,44 @@ def main():
     design_spec_path = out_dir / "design_spec.json"
     srt_path = out_dir / "subtitles.srt"
     refs_dir = Path("references")
+
+    if args.tts_only:
+        # Ранний путь: ждём уже сгенерированные картинки + prompts.json
+        if not progress_path.exists():
+            sys.exit(f"ERROR: --tts-only requires existing {progress_path}")
+        data = json.loads(progress_path.read_text(encoding="utf-8"))
+        scenes = [Scene(**s) for s in data["scenes"]]
+
+        audio_dir = out_dir / "audio"
+        log.info("TTS-only stage: ElevenLabs → %s", audio_dir)
+        tts_summary = tts_mod.run_tts_stage(
+            scenes=scenes,
+            voices=voices,
+            api_key=eleven_key,
+            audio_dir=audio_dir,
+            save_progress_fn=lambda: save_progress(progress_path, scenes),
+        )
+        log.info("TTS: %d ok, %d skipped, %d error%s",
+                 tts_summary["ok"], tts_summary["skipped"],
+                 tts_summary["error"],
+                 " (ABORTED)" if tts_summary["aborted"] else "")
+
+        # Regenerate SRT с новой длительностью
+        try:
+            export_srt(scenes, srt_path)
+        except Exception as e:
+            log.warning("SRT export failed: %s", e)
+
+        log.info("Done (tts-only).")
+        return
+
+    story = Path(args.story).read_text(encoding="utf-8")
+    chars_path = Path(args.characters)
+    if chars_path.exists():
+        characters = json.loads(chars_path.read_text(encoding="utf-8"))
+    else:
+        characters = {}
+        chars_path.write_text("{}", encoding="utf-8")
 
     # ── BOOTSTRAP: auto-build characters + reference portraits + design spec ─
     if args.bootstrap and not args.resume:
