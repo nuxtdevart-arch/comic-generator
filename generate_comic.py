@@ -35,6 +35,14 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
+from pydantic import BaseModel, ValidationError
+
+from schemas import (
+    CharactersResponse,
+    DesignSpec,
+    ScenePromptResponse,
+    SplitResponse,
+)
 
 try:
     from google import genai
@@ -184,15 +192,20 @@ def backoff_delay(attempt: int, kind: str,
 
 def call_llm_json(client: genai.Client, model: str, prompt: str,
                   system: str | None = None,
-                  deterministic: bool = False) -> Any:
+                  deterministic: bool = False,
+                  schema: type[BaseModel] | None = None) -> Any:
     """Call LLM and parse JSON from the response.
 
     Robust to 429/503/5xx with full-jitter exponential backoff and
     Retry-After honoring. Falls back to a cheaper model after exhausting
     retries.
 
-    deterministic=True forces temperature=0 and disables thinking, so
-    identical prompts produce identical output (needed for stable splits).
+    If schema is provided, validates the parsed JSON against it. On
+    ValidationError, re-prompts the LLM with the error detail attached,
+    consuming the retry budget. Returns result.model_dump() so callers
+    using data.get(...) keep working unchanged.
+
+    deterministic=True forces temperature=0 and disables thinking.
     """
     cfg_kwargs: dict[str, Any] = {
         "response_mime_type": "application/json",
@@ -207,20 +220,45 @@ def call_llm_json(client: genai.Client, model: str, prompt: str,
     fallback = FLASH_FALLBACK_MODEL if model == FLASH_MODEL else (
         PRO_FALLBACK_MODEL if model == PRO_MODEL else None
     )
+    base_prompt = prompt
+    current_prompt = base_prompt
     last_err: Exception | None = None
     consec_overload = 0
     for attempt in range(MAX_RETRIES + 1):
         try:
             resp = client.models.generate_content(
-                model=model, contents=prompt, config=cfg,
+                model=model, contents=current_prompt, config=cfg,
             )
             text = (resp.text or "").strip()
             # strip ```json fences just in case
             text = re.sub(r"^```(?:json)?|```$", "", text,
                           flags=re.MULTILINE).strip()
-            return json.loads(text)
+            data = json.loads(text)
+
+            if schema is not None:
+                try:
+                    return schema.model_validate(data).model_dump()
+                except ValidationError as ve:
+                    last_err = ve
+                    log.warning(
+                        "Schema validation failed on %s (attempt %d/%d): %s",
+                        model, attempt + 1, MAX_RETRIES + 1, ve,
+                    )
+                    current_prompt = (
+                        base_prompt
+                        + "\n\nPREVIOUS RESPONSE FAILED SCHEMA VALIDATION:\n"
+                        + str(ve)
+                        + "\n\nReturn valid JSON matching the schema exactly."
+                    )
+                    kind, retry_after = "validation", None
+                    consec_overload = 0
+                    # fall through to backoff
+                else:
+                    # pragma: no cover - unreachable, success path returned above
+                    pass
+            else:
+                return data
         except json.JSONDecodeError as e:
-            # Bad JSON — retry once or twice, short backoff.
             last_err = e
             kind, retry_after = "unknown", None
             consec_overload = 0
@@ -241,8 +279,8 @@ def call_llm_json(client: genai.Client, model: str, prompt: str,
         if consec_overload >= FAST_FALLBACK_OVERLOAD_THRESHOLD and fallback:
             log.warning("%s overloaded x%d, switching to fallback %s early",
                         model, consec_overload, fallback)
-            return call_llm_json(client, fallback, prompt, system=system,
-                                 deterministic=deterministic)
+            return call_llm_json(client, fallback, base_prompt, system=system,
+                                 deterministic=deterministic, schema=schema)
 
         if attempt >= MAX_RETRIES:
             break
@@ -253,8 +291,8 @@ def call_llm_json(client: genai.Client, model: str, prompt: str,
     if fallback:
         log.warning("All retries exhausted for %s, trying fallback %s",
                     model, fallback)
-        return call_llm_json(client, fallback, prompt, system=system,
-                             deterministic=deterministic)
+        return call_llm_json(client, fallback, base_prompt, system=system,
+                             deterministic=deterministic, schema=schema)
     raise RuntimeError(f"LLM failed after retries: {last_err}")
 
 
