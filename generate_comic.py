@@ -658,7 +658,8 @@ def bootstrap_characters(
     data = call_llm_json(client, model,
                          BOOTSTRAP_PROMPT.format(story=story),
                          system=BOOTSTRAP_SYSTEM,
-                         deterministic=True)
+                         deterministic=True,
+                         schema=CharactersResponse)
     added = 0
     for c in data.get("characters", []):
         cid = c["id"]
