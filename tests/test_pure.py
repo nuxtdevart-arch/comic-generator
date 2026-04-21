@@ -1,7 +1,7 @@
 """Characterization tests for pure functions in generate_comic."""
 import pytest
 
-from generate_comic import backoff_delay, classify_error
+from generate_comic import backoff_delay, classify_error, _fmt_srt_time
 
 
 class TestClassifyError:
@@ -74,3 +74,22 @@ class TestBackoffDelay:
 
     def test_returns_float(self):
         assert isinstance(backoff_delay(0, "server"), float)
+
+
+class TestFmtSrtTime:
+    @pytest.mark.parametrize("seconds,expected", [
+        (0.0, "00:00:00,000"),
+        (1.0, "00:00:01,000"),
+        (59.999, "00:00:59,999"),
+        (60.0, "00:01:00,000"),
+        (3600.0, "01:00:00,000"),
+        (3661.5, "01:01:01,500"),
+        (7200.001, "02:00:00,001"),
+    ])
+    def test_formatting(self, seconds, expected):
+        assert _fmt_srt_time(seconds) == expected
+
+    def test_output_format_has_comma_separator(self):
+        # SRT uses comma, not dot, before milliseconds
+        assert "," in _fmt_srt_time(1.234)
+        assert "." not in _fmt_srt_time(1.234)
