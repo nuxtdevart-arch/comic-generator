@@ -46,7 +46,7 @@ python generate_comic.py --story story.txt --bootstrap --batch
 |---|---|---|
 | `classify_error` | 149 | Классификатор API-ошибок (`rate_limit`/`overload`/`server`/`timeout`/`fatal`/`unknown`) |
 | `backoff_delay` | 172 | Full-jitter exponential backoff, уважает Retry-After |
-| `call_llm_json` | 185 | Универсальная обёртка над Gemini text API с retry + fallback |
+| `call_llm_json` | 185 | Универсальная обёртка над Gemini text API с retry + fallback. Поддерживает `schema=BaseModel` для pydantic-валидации и re-prompt при ошибках. |
 | `pick_scene_model` | 261 | Выбор модели (Flash vs Pro) по сложности сцены |
 | `split_story` | 299 | Разбивка прозы на кинематографические сцены |
 | `build_scene_prompt` | 385 | Построение prompt + метаданных для одной сцены |
@@ -115,20 +115,12 @@ python generate_comic.py --story story.txt --bootstrap --batch
 - `--resume` после прерывания, включая полуготовый batch.
 - Retry + fallback на уровне модели (Flash→Lite, Pro→Flash).
 - SRT-экспорт с таймингами из `duration_sec` + `pacing`.
+- **Unit-тесты** для 5 чистых функций (`tests/test_pure.py`).
+- **Schema validation** 4 LLM-ответов через pydantic (`schemas.py`), retry-on-fail встроен в `call_llm_json`.
 
 ### 🚧 В работе (апрель 2026)
 
-**Подпроект 1: Unit-тесты + schema validation** (TODO раздел 8, пункты 🔴)
-
-- Спецификация: `docs/superpowers/specs/2026-04-21-tests-schema-validation-design.md`
-- План: `docs/superpowers/plans/2026-04-21-tests-schema-validation.md`
-- Статус: спец и план утверждены, реализация не начата.
-- Scope:
-  - pytest-покрытие 5 чистых функций (`classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model`).
-  - pydantic-валидация 4 LLM-ответов (`split`, `bootstrap`, `scene prompts`, `design spec`).
-  - Retry-on-validation-fail: при `ValidationError` → re-prompt с текстом ошибки.
-  - Новые файлы: `schemas.py`, `tests/`, `requirements-dev.txt`, `.gitignore`.
-  - Git init (проект пока не под VCS).
+Нет активных подпроектов. Следующий — TTS-интеграция.
 
 **Не входит в текущую итерацию**:
 - Integration-тесты с mock `genai.Client`
@@ -142,14 +134,16 @@ python generate_comic.py --story story.txt --bootstrap --batch
 
 Порядок реализации, утверждённый автором:
 
-1. **Тесты + schema validation** ← в работе
-2. **TTS-интеграция** (TODO раздел 2): `--tts elevenlabs|yandex|silero`, `voices.json`, `output/audio/scene_*.mp3`
-3. **`--render-video`** (TODO раздел 3): финальная ffmpeg-склейка кадров + голоса + SRT → mp4
-4. **`--scene N` + параллельная генерация** (TODO раздел 1)
-5. **Usage tracking + `--estimate`** (TODO раздел 6)
-6. **Рефакторинг монолита** (TODO раздел 9): разбивка на `comic/*.py` модули
+1. **TTS-интеграция** (TODO раздел 2): `--tts elevenlabs|yandex|silero`, `voices.json`, `output/audio/scene_*.mp3`
+2. **`--render-video`** (TODO раздел 3): финальная ffmpeg-склейка кадров + голоса + SRT → mp4
+3. **`--scene N` + параллельная генерация** (TODO раздел 1)
+4. **Usage tracking + `--estimate`** (TODO раздел 6)
+5. **Рефакторинг монолита** (TODO раздел 9): разбивка на `comic/*.py` модули
 
 Каждый пункт идёт через цикл: brainstorming → спец в `docs/superpowers/specs/` → план в `docs/superpowers/plans/` → реализация.
+
+Полный список сделанных фич:
+- **Unit-тесты + schema validation** (апрель 2026).
 
 Полный список фич с приоритетами 🔴🟡🟢 — в `TODO.md`.
 
@@ -175,12 +169,12 @@ python generate_comic.py --story story.txt --bootstrap --batch
 ### LLM-интеграция
 
 - JSON-ответы читать только через `call_llm_json`. Не дублировать retry-логику.
-- После подпроекта 1: всегда передавать `schema=...` в `call_llm_json` для новых LLM-вызовов.
+- Всегда передавать `schema=...` в `call_llm_json` для всех LLM-вызовов.
 - Детерминированные вызовы (bootstrap, split, design spec) — `deterministic=True`.
 - Эскалация Flash→Pro только на явных триггерах (`pick_scene_model`), не на каждой ошибке.
 - Batch-режим — для дешёвых массовых операций (scene prompts), НЕ для реалтайм-задач и НЕ для картинок.
 
-### Тесты (после подпроекта 1)
+### Тесты
 
 - `pytest tests/ -v` — все тесты должны быть зелёные перед коммитом.
 - Характеризационные тесты для существующих чистых функций (фиксируем поведение as-is).

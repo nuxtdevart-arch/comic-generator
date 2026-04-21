@@ -86,8 +86,8 @@
 
 ## 8. Надёжность и тестирование
 
-- 🔴 **Unit-тесты** для чистых функций: `classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model`. Сейчас тестов нет вообще.
-- 🔴 **Schema validation** ответов LLM через `pydantic` или `jsonschema`. Сейчас — `data.get(...)` с дефолтами, если LLM выдаст кривой JSON — тихо потеряем поля.
+- ✅ **Unit-тесты** для чистых функций: `classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model` — покрыты в `tests/test_pure.py` (апрель 2026).
+- ✅ **Schema validation** ответов LLM через `pydantic` — все 4 LLM-вызова (split, bootstrap, scene prompts, design spec) валидируются, retry-on-ValidationError встроен в `call_llm_json`. Batch path помечает сцену `status=error` при fail. Реализовано апрель 2026.
 - 🟡 **Integration-тест** на замоканном `genai.Client`: прогнать 3-сценный story через весь пайплайн, проверить структуру `prompts.json` и `subtitles.srt`.
 - 🟡 **Golden test** для SRT: зафиксировать эталонный выход на тестовом story, регрессии ловятся сравнением.
 - 🟡 **Retry budget с предохранителем** — если сумма ретраев по всем сценам превысила X, останавливаться. Иначе зависший эндпоинт может сожрать сотни вызовов.

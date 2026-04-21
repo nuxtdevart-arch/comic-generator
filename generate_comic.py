@@ -35,6 +35,14 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
+from pydantic import BaseModel, ValidationError
+
+from schemas import (
+    CharactersResponse,
+    DesignSpec,
+    ScenePromptResponse,
+    SplitResponse,
+)
 
 try:
     from google import genai
@@ -184,15 +192,20 @@ def backoff_delay(attempt: int, kind: str,
 
 def call_llm_json(client: genai.Client, model: str, prompt: str,
                   system: str | None = None,
-                  deterministic: bool = False) -> Any:
+                  deterministic: bool = False,
+                  schema: type[BaseModel] | None = None) -> Any:
     """Call LLM and parse JSON from the response.
 
     Robust to 429/503/5xx with full-jitter exponential backoff and
     Retry-After honoring. Falls back to a cheaper model after exhausting
     retries.
 
-    deterministic=True forces temperature=0 and disables thinking, so
-    identical prompts produce identical output (needed for stable splits).
+    If schema is provided, validates the parsed JSON against it. On
+    ValidationError, re-prompts the LLM with the error detail attached,
+    consuming the retry budget. Returns result.model_dump() so callers
+    using data.get(...) keep working unchanged.
+
+    deterministic=True forces temperature=0 and disables thinking.
     """
     cfg_kwargs: dict[str, Any] = {
         "response_mime_type": "application/json",
@@ -207,20 +220,45 @@ def call_llm_json(client: genai.Client, model: str, prompt: str,
     fallback = FLASH_FALLBACK_MODEL if model == FLASH_MODEL else (
         PRO_FALLBACK_MODEL if model == PRO_MODEL else None
     )
+    base_prompt = prompt
+    current_prompt = base_prompt
     last_err: Exception | None = None
     consec_overload = 0
     for attempt in range(MAX_RETRIES + 1):
         try:
             resp = client.models.generate_content(
-                model=model, contents=prompt, config=cfg,
+                model=model, contents=current_prompt, config=cfg,
             )
             text = (resp.text or "").strip()
             # strip ```json fences just in case
             text = re.sub(r"^```(?:json)?|```$", "", text,
                           flags=re.MULTILINE).strip()
-            return json.loads(text)
+            data = json.loads(text)
+
+            if schema is not None:
+                try:
+                    return schema.model_validate(data).model_dump()
+                except ValidationError as ve:
+                    last_err = ve
+                    log.warning(
+                        "Schema validation failed on %s (attempt %d/%d): %s",
+                        model, attempt + 1, MAX_RETRIES + 1, ve,
+                    )
+                    current_prompt = (
+                        base_prompt
+                        + "\n\nPREVIOUS RESPONSE FAILED SCHEMA VALIDATION:\n"
+                        + str(ve)
+                        + "\n\nReturn valid JSON matching the schema exactly."
+                    )
+                    kind, retry_after = "validation", None
+                    consec_overload = 0
+                    # fall through to backoff
+                else:
+                    # pragma: no cover - unreachable, success path returned above
+                    pass
+            else:
+                return data
         except json.JSONDecodeError as e:
-            # Bad JSON — retry once or twice, short backoff.
             last_err = e
             kind, retry_after = "unknown", None
             consec_overload = 0
@@ -241,8 +279,8 @@ def call_llm_json(client: genai.Client, model: str, prompt: str,
         if consec_overload >= FAST_FALLBACK_OVERLOAD_THRESHOLD and fallback:
             log.warning("%s overloaded x%d, switching to fallback %s early",
                         model, consec_overload, fallback)
-            return call_llm_json(client, fallback, prompt, system=system,
-                                 deterministic=deterministic)
+            return call_llm_json(client, fallback, base_prompt, system=system,
+                                 deterministic=deterministic, schema=schema)
 
         if attempt >= MAX_RETRIES:
             break
@@ -253,8 +291,8 @@ def call_llm_json(client: genai.Client, model: str, prompt: str,
     if fallback:
         log.warning("All retries exhausted for %s, trying fallback %s",
                     model, fallback)
-        return call_llm_json(client, fallback, prompt, system=system,
-                             deterministic=deterministic)
+        return call_llm_json(client, fallback, base_prompt, system=system,
+                             deterministic=deterministic, schema=schema)
     raise RuntimeError(f"LLM failed after retries: {last_err}")
 
 
@@ -301,7 +339,8 @@ def split_story(client: genai.Client, story: str, model: str) -> list[Scene]:
     data = call_llm_json(client, model,
                          SPLIT_PROMPT.format(story=story),
                          system=SPLIT_SYSTEM,
-                         deterministic=True)
+                         deterministic=True,
+                         schema=SplitResponse)
     scenes = []
     for i, s in enumerate(data.get("scenes", []), start=1):
         scenes.append(Scene(index=i,
@@ -396,13 +435,15 @@ def build_scene_prompt(client: genai.Client, scene: Scene,
     prompt = SCENE_PROMPT.format(dossier=dossier, story=story,
                                  scene=scene.text)
     try:
-        data = call_llm_json(client, model, prompt, system=SCENE_SYSTEM)
+        data = call_llm_json(client, model, prompt, system=SCENE_SYSTEM,
+                             schema=ScenePromptResponse)
     except Exception as e:
         if model == FLASH_MODEL and not force_pro:
             log.warning("Flash failed for scene %d, escalating to Pro: %s",
                         scene.index, e)
             data = call_llm_json(client, PRO_MODEL, prompt,
-                                 system=SCENE_SYSTEM)
+                                 system=SCENE_SYSTEM,
+                                 schema=ScenePromptResponse)
             model = PRO_MODEL
         else:
             raise
@@ -413,7 +454,8 @@ def build_scene_prompt(client: genai.Client, scene: Scene,
             and not force_pro:
         log.info("Scene %d has %d chars, re-running on Pro",
                  scene.index, n_chars)
-        data = call_llm_json(client, PRO_MODEL, prompt, system=SCENE_SYSTEM)
+        data = call_llm_json(client, PRO_MODEL, prompt, system=SCENE_SYSTEM,
+                             schema=ScenePromptResponse)
         model = PRO_MODEL
     return data, model
 
@@ -513,10 +555,17 @@ def batch_collect_scene_prompts(
             results[scene.index] = (None, model, str(resp.error))
             continue
         try:
-            data = _parse_batch_response_text(resp.response.text)
-            results[scene.index] = (data, model, None)
+            raw_data = _parse_batch_response_text(resp.response.text)
         except Exception as e:
             results[scene.index] = (None, model, f"parse failed: {e}")
+            continue
+        try:
+            data = ScenePromptResponse.model_validate(raw_data).model_dump()
+        except ValidationError as ve:
+            log.error("Batch scene %d schema fail: %s", scene.index, ve)
+            results[scene.index] = (None, model, f"schema: {ve}")
+            continue
+        results[scene.index] = (data, model, None)
     return results
 
 
@@ -619,7 +668,8 @@ def bootstrap_characters(
     data = call_llm_json(client, model,
                          BOOTSTRAP_PROMPT.format(story=story),
                          system=BOOTSTRAP_SYSTEM,
-                         deterministic=True)
+                         deterministic=True,
+                         schema=CharactersResponse)
     added = 0
     for c in data.get("characters", []):
         cid = c["id"]
@@ -722,7 +772,8 @@ def generate_design_spec(client: genai.Client, story: str,
                              excerpt=story[:2000],
                              style=STYLE_SUFFIX),
                          system=DESIGN_SPEC_SYSTEM,
-                         deterministic=True)
+                         deterministic=True,
+                         schema=DesignSpec)
     out_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",

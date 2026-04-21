@@ -229,6 +229,17 @@ ffmpeg -framerate 1/5 -i output/frame_%03d.png \
 
 ---
 
+## Тесты
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+Покрыто: 5 чистых функций (`classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model`) и pydantic-схемы для 4 LLM-ответов. Validation-fail вызывает re-prompt LLM с текстом ошибки.
+
+---
+
 ## Новый персонаж, появившийся уже в середине работы
 
 Если в сцене обнаружен персонаж, которого не было в `characters.json`:
