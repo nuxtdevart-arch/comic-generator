@@ -31,3 +31,37 @@ class TestSplitResponse:
         data = {"scenes": [{"text": "t"}], "extra_meta": "ignored"}
         result = SplitResponse.model_validate(data)
         assert len(result.scenes) == 1
+
+
+from schemas import CharactersResponse
+
+
+class TestCharactersResponse:
+    def test_happy_path(self):
+        data = {"characters": [
+            {"id": "aleksey_38", "name": "Алексей", "description": "38-year-old man..."},
+        ]}
+        result = CharactersResponse.model_validate(data)
+        assert result.characters[0].id == "aleksey_38"
+
+    def test_empty_characters_ok(self):
+        result = CharactersResponse.model_validate({"characters": []})
+        assert result.characters == []
+
+    def test_cyrillic_id_rejected(self):
+        with pytest.raises(ValidationError):
+            CharactersResponse.model_validate({"characters": [
+                {"id": "Алексей-38", "name": "x", "description": "y"},
+            ]})
+
+    def test_uppercase_id_rejected(self):
+        with pytest.raises(ValidationError):
+            CharactersResponse.model_validate({"characters": [
+                {"id": "AleksEy_38", "name": "x", "description": "y"},
+            ]})
+
+    def test_empty_name_rejected(self):
+        with pytest.raises(ValidationError):
+            CharactersResponse.model_validate({"characters": [
+                {"id": "x", "name": "", "description": "y"},
+            ]})

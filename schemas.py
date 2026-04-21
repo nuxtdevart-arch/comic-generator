@@ -18,3 +18,14 @@ class SplitScene(_Base):
 
 class SplitResponse(_Base):
     scenes: list[SplitScene] = Field(min_length=1)
+
+
+# ── 2. bootstrap_characters ──────────────────────────────────────────
+class BootstrapCharacter(_Base):
+    id: str = Field(pattern=r"^[a-z0-9_]+$")
+    name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+
+
+class CharactersResponse(_Base):
+    characters: list[BootstrapCharacter]
