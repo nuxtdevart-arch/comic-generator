@@ -138,3 +138,68 @@ class TestAudioDuration:
             pytest.skip(f"fixture missing: {fixture}")
         dur = audio_duration(fixture)
         assert 0.8 < dur < 1.3
+
+
+import requests
+from tts import generate_tts, ELEVEN_API_BASE
+
+
+MP3_MAGIC = b"\xff\xfb\x90\x00" + b"\x00" * 256  # minimal-ish MP3 header + padding
+
+
+class TestGenerateTts:
+    @pytest.fixture(autouse=True)
+    def no_sleep(self, monkeypatch):
+        monkeypatch.setattr("tts._sleep", lambda d: None)
+
+    def _cfg(self):
+        return {
+            "voice_id": "v1",
+            "model_id": "eleven_multilingual_v2",
+            "settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }
+
+    def test_happy_path_writes_file_atomically(self, tmp_path, requests_mock):
+        url = f"{ELEVEN_API_BASE}/text-to-speech/v1"
+        requests_mock.post(url, content=MP3_MAGIC, status_code=200)
+        out = tmp_path / "scene_001.mp3"
+        generate_tts("hello world", self._cfg(), out, api_key="k")
+        assert out.exists()
+        assert out.read_bytes() == MP3_MAGIC
+        # .tmp файл убран
+        assert not out.with_suffix(out.suffix + ".tmp").exists()
+
+    def test_retries_on_429_then_success(self, tmp_path, requests_mock):
+        url = f"{ELEVEN_API_BASE}/text-to-speech/v1"
+        requests_mock.post(url, [
+            {"status_code": 429, "text": "rate limit"},
+            {"status_code": 200, "content": MP3_MAGIC},
+        ])
+        out = tmp_path / "scene_001.mp3"
+        generate_tts("hi", self._cfg(), out, api_key="k")
+        assert out.exists()
+        assert requests_mock.call_count == 2
+
+    def test_fatal_on_401_raises_without_retry(self, tmp_path, requests_mock):
+        url = f"{ELEVEN_API_BASE}/text-to-speech/v1"
+        requests_mock.post(url, status_code=401, text="unauthorized")
+        out = tmp_path / "scene_001.mp3"
+        with pytest.raises(RuntimeError) as exc:
+            generate_tts("hi", self._cfg(), out, api_key="k")
+        assert "401" in str(exc.value)
+        assert requests_mock.call_count == 1
+        assert not out.exists()
+
+    def test_sends_correct_body(self, tmp_path, requests_mock):
+        url = f"{ELEVEN_API_BASE}/text-to-speech/v1"
+        requests_mock.post(url, content=MP3_MAGIC, status_code=200)
+        out = tmp_path / "scene_001.mp3"
+        generate_tts("привет", self._cfg(), out, api_key="secret-key")
+        req = requests_mock.last_request
+        body = req.json()
+        assert body["text"] == "привет"
+        assert body["model_id"] == "eleven_multilingual_v2"
+        assert body["voice_settings"] == {"stability": 0.5, "similarity_boost": 0.75}
+        assert req.headers.get("xi-api-key") == "secret-key"
+        # output_format — query param
+        assert "output_format=mp3_44100_128" in req.url

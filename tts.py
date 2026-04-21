@@ -78,3 +78,64 @@ def voice_hash(voice_text: str, cfg: dict[str, Any]) -> str:
 def audio_duration(mp3_path: Path) -> float:
     """Parse mp3 duration (seconds) via mutagen."""
     return float(MP3(str(mp3_path)).info.length)
+
+
+def _sleep(delay: float) -> None:
+    """Indirection so tests can monkeypatch."""
+    import time
+    time.sleep(delay)
+
+
+def generate_tts(voice_text: str, cfg: dict[str, Any], out_path: Path, api_key: str) -> None:
+    """POST to ElevenLabs text-to-speech. Write mp3 atomically to out_path.
+
+    Retries on classify_error -> rate_limit/overload/server/timeout/unknown.
+    Raises RuntimeError on fatal or after TTS_MAX_RETRIES.
+    """
+    # Lazy import, чтобы избежать cycle при импорте tts в generate_comic
+    from generate_comic import classify_error, backoff_delay
+
+    url = f"{ELEVEN_API_BASE}/text-to-speech/{cfg['voice_id']}"
+    params = {"output_format": DEFAULT_OUTPUT_FORMAT}
+    headers = {"xi-api-key": api_key, "Content-Type": "application/json"}
+    body = {
+        "text": voice_text,
+        "model_id": cfg["model_id"],
+        "voice_settings": cfg["settings"],
+    }
+
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    last_err: Exception | None = None
+
+    for attempt in range(TTS_MAX_RETRIES):
+        try:
+            resp = requests.post(
+                url, params=params, headers=headers, json=body,
+                timeout=TTS_REQUEST_TIMEOUT,
+            )
+            if resp.status_code == 200:
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path.write_bytes(resp.content)
+                os.replace(tmp_path, out_path)
+                return
+            # Non-200 → превращаем в исключение с текстом кода, чтобы classify_error распознал
+            raise RuntimeError(f"{resp.status_code} {resp.text[:200]}")
+        except Exception as e:
+            last_err = e
+            kind, retry_after = classify_error(e)
+            if kind == "fatal":
+                raise RuntimeError(f"TTS fatal: {e}") from e
+            if attempt == TTS_MAX_RETRIES - 1:
+                break
+            delay = backoff_delay(attempt, kind, retry_after=retry_after)
+            log.warning("TTS retry %d/%d after %.1fs (%s): %s",
+                        attempt + 1, TTS_MAX_RETRIES, delay, kind, e)
+            _sleep(delay)
+
+    # tmp мог остаться при ошибке записи — подчистим
+    if tmp_path.exists():
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+    raise RuntimeError(f"TTS retries exhausted: {last_err}")
