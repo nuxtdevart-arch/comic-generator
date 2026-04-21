@@ -73,3 +73,8 @@ def voice_hash(voice_text: str, cfg: dict[str, Any]) -> str:
         + b"|" + json.dumps(cfg["settings"], sort_keys=True, ensure_ascii=True).encode("utf-8")
     )
     return hashlib.sha256(blob).hexdigest()
+
+
+def audio_duration(mp3_path: Path) -> float:
+    """Parse mp3 duration (seconds) via mutagen."""
+    return float(MP3(str(mp3_path)).info.length)

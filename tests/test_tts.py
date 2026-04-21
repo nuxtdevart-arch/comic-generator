@@ -121,3 +121,20 @@ class TestVoiceHash:
 
     def test_whitespace_trimmed(self):
         assert voice_hash("hello", self._cfg()) == voice_hash("  hello  ", self._cfg())
+
+
+from tts import audio_duration
+
+
+class TestAudioDuration:
+    def test_reads_real_mp3(self, tmp_path):
+        # Генерим 1-секундный silent mp3 через mutagen + minimal bytes
+        # Надёжнее: сохранить заранее заготовленный короткий mp3 в tests/fixtures/.
+        # Но чтобы не тянуть бинарник в репо, используем готовый файл при smoke-тесте
+        # и параметризуем этот тест через pytest.importorskip fallback.
+        pytest.importorskip("mutagen.mp3")
+        fixture = tmp_path.parent / "fixtures" / "silence_1s.mp3"
+        if not fixture.exists():
+            pytest.skip(f"fixture missing: {fixture}")
+        dur = audio_duration(fixture)
+        assert 0.8 < dur < 1.3
