@@ -23,3 +23,18 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 MAX_CONSECUTIVE_ERRORS = 5
 TTS_MAX_RETRIES = 6
 TTS_REQUEST_TIMEOUT = 120  # seconds
+
+
+def load_voices(path: Path) -> dict[str, Any]:
+    """Read voices.json. Raises FileNotFoundError/ValueError on problems."""
+    if not path.exists():
+        raise FileNotFoundError(f"voices.json not found: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise ValueError(f"voices.json is not valid JSON: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError("voices.json root must be an object")
+    if "narrator" not in data:
+        raise ValueError("voices.json must contain a 'narrator' entry (required fallback)")
+    return data
