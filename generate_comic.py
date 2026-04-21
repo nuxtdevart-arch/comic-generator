@@ -810,6 +810,21 @@ def _fmt_srt_time(t: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+def effective_duration(scene: "Scene") -> float:
+    """Prefer real audio duration from TTS; fallback to estimate.
+
+    Priority:
+    1. audio_duration (set by run_tts_stage)
+    2. duration_sec (legacy precomputed estimate)
+    3. estimate_duration(voice_text or text, pacing)
+    """
+    if scene.audio_duration and scene.audio_duration > 0:
+        return float(scene.audio_duration)
+    if scene.duration_sec and scene.duration_sec > 0:
+        return float(scene.duration_sec)
+    return estimate_duration(scene.voice_text or scene.text, scene.pacing)
+
+
 def export_srt(scenes: list[Scene], out_path: Path) -> None:
     cursor = 0.0
     blocks: list[str] = []
@@ -818,8 +833,7 @@ def export_srt(scenes: list[Scene], out_path: Path) -> None:
             continue
         if not scene.voice_text and not scene.subtitle_lines:
             continue
-        dur = scene.duration_sec or estimate_duration(
-            scene.voice_text or scene.text, scene.pacing)
+        dur = effective_duration(scene)
         start = cursor
         end = cursor + dur
         cursor = end

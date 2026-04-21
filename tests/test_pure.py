@@ -155,3 +155,27 @@ class TestPickSceneModel:
 
     def test_force_pro_overrides_simple_scene(self):
         assert pick_scene_model("x", expected_chars=0, force_pro=True) == PRO_MODEL
+
+
+from generate_comic import effective_duration, Scene
+
+
+class TestEffectiveDuration:
+    def test_uses_audio_duration_when_present(self):
+        s = Scene(index=1, text="x", voice_text="hello", audio_duration=3.5)
+        assert effective_duration(s) == 3.5
+
+    def test_fallback_when_audio_duration_zero(self):
+        s = Scene(index=1, text="x", voice_text="hello", audio_duration=0.0)
+        # fallback идёт в estimate_duration → > MIN_SCENE_DURATION
+        assert effective_duration(s) >= MIN_SCENE_DURATION
+
+    def test_fallback_when_no_voice_text(self):
+        s = Scene(index=1, text="fallback text", voice_text="")
+        # estimate_duration на scene.text
+        assert effective_duration(s) >= MIN_SCENE_DURATION
+
+    def test_audio_duration_wins_even_if_duration_sec_set(self):
+        s = Scene(index=1, text="x", voice_text="hello",
+                  duration_sec=10.0, audio_duration=2.2)
+        assert effective_duration(s) == 2.2
