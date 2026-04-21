@@ -130,6 +130,12 @@ class Scene:
     pacing: str = "normal"              # "slow" | "normal" | "fast"
     duration_sec: float = 0.0           # estimated clip length
     subtitle_lines: list[str] = field(default_factory=list)
+    # TTS metadata (filled by run_tts_stage)
+    audio_path: str = ""
+    audio_status: str = "pending"       # pending | ok | skipped | error
+    audio_hash: str = ""
+    audio_duration: float = 0.0
+    audio_error: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
