@@ -38,3 +38,25 @@ def load_voices(path: Path) -> dict[str, Any]:
     if "narrator" not in data:
         raise ValueError("voices.json must contain a 'narrator' entry (required fallback)")
     return data
+
+
+def resolve_voice(speaker: str, voices: dict[str, Any]) -> dict[str, Any]:
+    """Pick voice entry: speaker → default → narrator.
+    Returns merged config {voice_id, model_id, settings}.
+    Missing model_id/settings in the chosen entry fall back to module defaults.
+    Raises ValueError if narrator is absent.
+    """
+    if "narrator" not in voices:
+        raise ValueError("voices dict has no 'narrator' fallback")
+
+    entry = voices.get(speaker) or voices.get("default") or voices["narrator"]
+
+    voice_id = entry.get("voice_id")
+    if not voice_id:
+        raise ValueError(f"voice entry for {speaker!r} has no voice_id")
+
+    return {
+        "voice_id": voice_id,
+        "model_id": entry.get("model_id", DEFAULT_MODEL_ID),
+        "settings": entry.get("settings", DEFAULT_SETTINGS),
+    }
