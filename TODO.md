@@ -86,7 +86,7 @@
 
 ## 8. Надёжность и тестирование
 
-- 🔴 **Unit-тесты** для чистых функций: `classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model`. Сейчас тестов нет вообще.
+- ✅ **Unit-тесты** для чистых функций: `classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model` — покрыты в `tests/test_pure.py` (апрель 2026).
 - 🔴 **Schema validation** ответов LLM через `pydantic` или `jsonschema`. Сейчас — `data.get(...)` с дефолтами, если LLM выдаст кривой JSON — тихо потеряем поля.
 - 🟡 **Integration-тест** на замоканном `genai.Client`: прогнать 3-сценный story через весь пайплайн, проверить структуру `prompts.json` и `subtitles.srt`.
 - 🟡 **Golden test** для SRT: зафиксировать эталонный выход на тестовом story, регрессии ловятся сравнением.

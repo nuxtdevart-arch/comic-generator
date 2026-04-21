@@ -124,6 +124,7 @@ python generate_comic.py --story story.txt --bootstrap --batch
 - План: `docs/superpowers/plans/2026-04-21-tests-schema-validation.md`
 - Статус: спец и план утверждены, реализация не начата.
 - Scope:
+  - ✅ Pure-функции покрыты тестами (task 11 плана).
   - pytest-покрытие 5 чистых функций (`classify_error`, `backoff_delay`, `_fmt_srt_time`, `estimate_duration`, `pick_scene_model`).
   - pydantic-валидация 4 LLM-ответов (`split`, `bootstrap`, `scene prompts`, `design spec`).
   - Retry-on-validation-fail: при `ValidationError` → re-prompt с текстом ошибки.
