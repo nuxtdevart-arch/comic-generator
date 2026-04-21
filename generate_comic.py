@@ -32,6 +32,7 @@ import random
 import re
 import sys
 import time
+import tts as tts_mod
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
@@ -875,6 +876,12 @@ def main():
     ap.add_argument("--limit", type=int, default=0,
                     help="Process only first N scenes (0 = all)")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--tts", action="store_true",
+                    help="Generate TTS audio via ElevenLabs after images")
+    ap.add_argument("--tts-only", action="store_true",
+                    help="Skip image stage; (re)generate audio + SRT from existing progress.json")
+    ap.add_argument("--voices", default="voices.json", type=Path,
+                    help="Path to voices.json mapping speakers to ElevenLabs voice configs")
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -887,6 +894,21 @@ def main():
               os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         sys.exit("ERROR: set GEMINI_API_KEY env var")
+
+    if args.tts or args.tts_only:
+        eleven_key = os.environ.get("ELEVEN_API_KEY")
+        if not eleven_key:
+            sys.exit("ERROR: ELEVEN_API_KEY not set in .env, required for --tts")
+        voices_path = args.voices
+        if not voices_path.exists():
+            sys.exit(f"ERROR: {voices_path} not found (required for --tts)")
+        try:
+            voices = tts_mod.load_voices(voices_path)
+        except (ValueError, FileNotFoundError) as e:
+            sys.exit(f"ERROR: {e}")
+    else:
+        eleven_key = None
+        voices = None
 
     client = genai.Client(api_key=api_key)
 
@@ -1048,7 +1070,11 @@ def main():
                            f"{', '.join(missing_refs)}")
         else:
             for cid in scene.character_ids:
-                ref = Path(characters[cid].get("reference_image", ""))
+                char_data = characters.get(cid)
+                if not char_data:
+                    skip_reason = f"unknown character ID: {cid}"
+                    break
+                ref = Path(char_data.get("reference_image", ""))
                 if not ref.exists():
                     skip_reason = f"reference image missing: {ref}"
                     break
@@ -1083,6 +1109,22 @@ def main():
             scene.status = "error"
             scene.error = "image generation failed"
         save_progress(progress_path, scenes)
+
+    # ── TTS stage ────────────────────────────────────────────────────────
+    if args.tts or args.tts_only:
+        audio_dir = out_dir / "audio"
+        log.info("TTS stage: ElevenLabs → %s", audio_dir)
+        tts_summary = tts_mod.run_tts_stage(
+            scenes=scenes,
+            voices=voices,
+            api_key=eleven_key,
+            audio_dir=audio_dir,
+            save_progress_fn=lambda: save_progress(progress_path, scenes),
+        )
+        log.info("TTS: %d ok, %d skipped, %d error%s",
+                 tts_summary["ok"], tts_summary["skipped"],
+                 tts_summary["error"],
+                 " (ABORTED)" if tts_summary["aborted"] else "")
 
     # ── Write final prompts.json ─────────────────────────────────────────
     prompts_path.write_text(
