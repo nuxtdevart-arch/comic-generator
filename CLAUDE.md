@@ -120,7 +120,12 @@ python generate_comic.py --story story.txt --bootstrap --batch
 
 ### 🚧 В работе (апрель 2026)
 
-Нет активных подпроектов. Следующий — TTS-интеграция.
+**TTS-интеграция (ElevenLabs MVP)** — ветка `feature/tts-integration`.
+- Spec: `docs/superpowers/specs/2026-04-21-tts-integration-design.md`
+- Plan: `docs/superpowers/plans/2026-04-21-tts-integration.md`
+- Prompts: `docs/superpowers/plans/2026-04-21-tts-integration-prompts.md`
+- Scope: `--tts` / `--tts-only`, `voices.json`, `output/audio/scene_*.mp3`, hash-кэш, SRT по реальной длительности mp3 (через `mutagen`).
+- Yandex/Silero — следующие подпроекты.
 
 **Не входит в текущую итерацию**:
 - Integration-тесты с mock `genai.Client`
