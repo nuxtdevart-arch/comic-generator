@@ -60,3 +60,16 @@ def resolve_voice(speaker: str, voices: dict[str, Any]) -> dict[str, Any]:
         "model_id": entry.get("model_id", DEFAULT_MODEL_ID),
         "settings": entry.get("settings", DEFAULT_SETTINGS),
     }
+
+
+def voice_hash(voice_text: str, cfg: dict[str, Any]) -> str:
+    """SHA256 over text + voice_id + model_id + canonical(settings).
+    sort_keys ensures reordering voices.json doesn't invalidate the cache.
+    """
+    blob = (
+        voice_text.strip().encode("utf-8")
+        + b"|" + cfg["voice_id"].encode("utf-8")
+        + b"|" + cfg["model_id"].encode("utf-8")
+        + b"|" + json.dumps(cfg["settings"], sort_keys=True, ensure_ascii=True).encode("utf-8")
+    )
+    return hashlib.sha256(blob).hexdigest()

@@ -79,3 +79,45 @@ class TestResolveVoice:
         assert cfg["model_id"] == "custom-model"
         # settings из записи целиком заменяют DEFAULT_SETTINGS (не merge)
         assert cfg["settings"] == {"stability": 0.9}
+
+
+from tts import voice_hash
+
+
+class TestVoiceHash:
+    def _cfg(self, **over):
+        base = {
+            "voice_id": "v1",
+            "model_id": "m",
+            "settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }
+        base.update(over)
+        return base
+
+    def test_deterministic(self):
+        h1 = voice_hash("hello", self._cfg())
+        h2 = voice_hash("hello", self._cfg())
+        assert h1 == h2
+        assert len(h1) == 64  # sha256 hex
+
+    def test_text_change_changes_hash(self):
+        assert voice_hash("a", self._cfg()) != voice_hash("b", self._cfg())
+
+    def test_voice_id_change_changes_hash(self):
+        assert voice_hash("x", self._cfg()) != voice_hash("x", self._cfg(voice_id="v2"))
+
+    def test_model_id_change_changes_hash(self):
+        assert voice_hash("x", self._cfg()) != voice_hash("x", self._cfg(model_id="m2"))
+
+    def test_settings_change_changes_hash(self):
+        a = voice_hash("x", self._cfg())
+        b = voice_hash("x", self._cfg(settings={"stability": 0.1, "similarity_boost": 0.75}))
+        assert a != b
+
+    def test_settings_key_reorder_same_hash(self):
+        a_cfg = self._cfg(settings={"stability": 0.5, "similarity_boost": 0.75})
+        b_cfg = self._cfg(settings={"similarity_boost": 0.75, "stability": 0.5})
+        assert voice_hash("x", a_cfg) == voice_hash("x", b_cfg)
+
+    def test_whitespace_trimmed(self):
+        assert voice_hash("hello", self._cfg()) == voice_hash("  hello  ", self._cfg())
