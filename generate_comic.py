@@ -435,13 +435,15 @@ def build_scene_prompt(client: genai.Client, scene: Scene,
     prompt = SCENE_PROMPT.format(dossier=dossier, story=story,
                                  scene=scene.text)
     try:
-        data = call_llm_json(client, model, prompt, system=SCENE_SYSTEM)
+        data = call_llm_json(client, model, prompt, system=SCENE_SYSTEM,
+                             schema=ScenePromptResponse)
     except Exception as e:
         if model == FLASH_MODEL and not force_pro:
             log.warning("Flash failed for scene %d, escalating to Pro: %s",
                         scene.index, e)
             data = call_llm_json(client, PRO_MODEL, prompt,
-                                 system=SCENE_SYSTEM)
+                                 system=SCENE_SYSTEM,
+                                 schema=ScenePromptResponse)
             model = PRO_MODEL
         else:
             raise
@@ -452,7 +454,8 @@ def build_scene_prompt(client: genai.Client, scene: Scene,
             and not force_pro:
         log.info("Scene %d has %d chars, re-running on Pro",
                  scene.index, n_chars)
-        data = call_llm_json(client, PRO_MODEL, prompt, system=SCENE_SYSTEM)
+        data = call_llm_json(client, PRO_MODEL, prompt, system=SCENE_SYSTEM,
+                             schema=ScenePromptResponse)
         model = PRO_MODEL
     return data, model
 
