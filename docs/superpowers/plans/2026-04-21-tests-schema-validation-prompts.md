@@ -12,39 +12,32 @@ Ready-to-paste prompts for executing the plan at `docs/superpowers/plans/2026-04
 
 Doc-sync tasks (TODO.md, CLAUDE.md, README.md) are bundled into Task 11 (pure tests milestone) and Task 18 (final milestone). Intermediate tasks do not touch docs.
 
-**Branching strategy:** one feature branch for the entire subproject, named `feature/tests-schema-validation`. Created in Task 0 after `git init`, all 18 task commits land on it, merged back to `main` in Task 18 after the final smoke test passes. Do NOT create a branch per task — commits are atomic enough on their own.
+**Branching strategy:** one feature branch for the entire subproject, named `feature/tests-schema-validation`. The default branch is `master` (not `main`). All 18 task commits land on the feature branch, merged back to `master` in Task 18 after the final smoke test passes. Do NOT create a branch per task — commits are atomic enough on their own.
+
+**Remote:** `origin = https://github.com/nuxtdevart-arch/comic-generator.git` (public). Push is performed only in Task 18 after the merge to master — intermediate task commits stay local on the feature branch until then.
+
+**⚠ Task 0 is ALREADY DONE** (repo initialized, initial commit on master, remote added, master pushed, feature branch created and checked out). Start directly from Task 1.
 
 ---
 
-## Prompt for Task 0 — Git init + gitignore
+## Task 0 — Git init + gitignore (DONE)
 
-```
-You are working in the Comic Frame Generator repository at the current working directory. The project is not yet under version control.
+**Status:** Already executed manually on 2026-04-21. Skip this prompt.
 
-Context to load first:
-- Read CLAUDE.md (project architecture, conventions, status).
-- Read docs/superpowers/plans/2026-04-21-tests-schema-validation.md, section "Task 0".
-- Read docs/superpowers/specs/2026-04-21-tests-schema-validation-design.md (background context).
+What was done:
+- `git init` + `git branch -M master` (default branch is `master`, not `main`).
+- `.gitignore` written with Python/secrets/generated-artifacts exclusions + `.claude/settings.local.json`.
+- Initial commit on `master`: "chore: initial repo with existing script + specs/plans for subproject 1".
+- Remote `origin` added → `https://github.com/nuxtdevart-arch/comic-generator.git` (public).
+- `master` pushed with `-u origin master`.
+- Feature branch `feature/tests-schema-validation` created and checked out.
 
-Your job: execute ONLY Task 0 of the plan. Do not advance to later tasks.
+Current state when Gemini starts Task 1:
+- Branch: `feature/tests-schema-validation` (1 commit, same as master).
+- Remote: `origin` points to the clean HTTPS URL (no token stored in `.git/config`).
+- Nothing to commit (clean working tree).
 
-Steps to perform:
-1. Run: git init && git branch -M main
-2. Create .gitignore with exactly the contents specified in the plan's Task 0, Step 2. Do not invent extra entries.
-3. Stage the listed files and make the initial commit with the exact message from Step 3 on main.
-4. Create and switch to the feature branch: git checkout -b feature/tests-schema-validation
-   (All subsequent tasks 1-17 commit on this branch. Task 18 merges it back to main.)
-
-Verification:
-- Run: git log --oneline
-  Expected: exactly one commit named "chore: initial repo with existing script".
-- Run: git status
-  Expected: "On branch feature/tests-schema-validation", "nothing to commit, working tree clean".
-- Run: git branch
-  Expected: * feature/tests-schema-validation, and main.
-
-At the end, report: the commit hash, current branch name, output of git log --oneline, output of git branch. Stop. Do not start Task 1.
-```
+Proceed directly to the Task 1 prompt below.
 
 ---
 
@@ -575,26 +568,32 @@ Part B — Documentation sync:
 9. Stage and commit the three doc files on the feature branch with message:
      "docs: mark subproject 1 (tests + schema validation) complete"
 
-Part C — Merge feature branch to main:
-10. Confirm you are on feature/tests-schema-validation and working tree is clean: git status
-11. Switch to main: git checkout main
+Part C — Merge feature branch to master and push to GitHub:
+10. Confirm you are on feature/tests-schema-validation and the working tree is clean: git status
+11. Switch to master: git checkout master
 12. Merge the feature branch with a merge commit (not fast-forward, to preserve the subproject boundary in history):
       git merge --no-ff feature/tests-schema-validation -m "Merge subproject 1: unit tests + LLM schema validation"
-13. Do NOT delete the feature branch — keep it as historical marker. Do NOT push anywhere (no remote configured).
-14. Run final validation on main: pytest tests/ -v
+13. Do NOT delete the feature branch — keep it as a historical marker.
+14. Run final validation on master: pytest tests/ -v
+15. Push master to origin: git push origin master
+    The remote is https://github.com/nuxtdevart-arch/comic-generator.git (already configured in Task 0).
+    If push fails with 403, STOP and report — do not attempt to re-configure credentials. The user will handle auth out-of-band.
+16. Optionally push the feature branch too (preserves the full history on GitHub):
+      git push -u origin feature/tests-schema-validation
 
 Verification:
 - Paste: git log --oneline --graph -25  (shows the merge commit + all task commits on the feature branch).
-- Paste: git branch  (expect main current, feature/tests-schema-validation still present).
+- Paste: git branch  (expect master current, feature/tests-schema-validation still present).
 - Paste: git status  (clean tree).
-- Paste: pytest tests/ -v  (final green run on main).
-- Paste: diff of TODO.md, CLAUDE.md, README.md against the previous main commit (use: git show HEAD^ -- TODO.md or git diff HEAD^ HEAD -- TODO.md CLAUDE.md README.md).
+- Paste: pytest tests/ -v  (final green run on master).
+- Paste: diff of TODO.md, CLAUDE.md, README.md against the previous master commit (use: git diff HEAD^ HEAD -- TODO.md CLAUDE.md README.md).
+- Paste: output of git push origin master (confirmation that remote is up to date).
 
 Final report:
 - Smoke test summary (did dry-run pass? any ValidationError encountered?).
 - Test count in final pytest run.
-- All commit hashes from tasks 0-18 in order (on feature branch), plus the merge commit hash on main.
-- Confirmation that main now passes pytest.
+- All commit hashes from tasks 1-18 in order (on feature branch), plus the merge commit hash on master.
+- Confirmation that master now passes pytest and is pushed to origin.
 - Anything unexpected or deviations from the plan.
 ```
 
