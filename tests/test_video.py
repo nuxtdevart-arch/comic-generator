@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 
-from video import _fmt_ass_time, _hex_to_ass_color, QUALITY_PRESETS, compute_video_hash
+from video import _fmt_ass_time, _hex_to_ass_color, QUALITY_PRESETS, compute_video_hash, scene_ass_block
 
 
 class TestFmtAssTime:
@@ -103,3 +103,47 @@ class TestComputeVideoHash:
         base_args["audio_path"].write_bytes(b"different-mp3-bytes")
         h_after = compute_video_hash(**base_args)
         assert h_before != h_after
+
+
+class TestSceneAssBlock:
+    def _scene(self, **overrides):
+        """Build a minimal dict that mimics Scene attributes used here."""
+        base = {
+            "voice_text": "long narration " * 20,
+            "subtitle_lines": ["Line one.", "Line two.", "Line three."],
+        }
+        base.update(overrides)
+        return type("S", (), base)()
+
+    def test_one_dialogue_line(self):
+        scene = self._scene()
+        block = scene_ass_block(scene, start_sec=0.0, end_sec=3.5)
+        assert block.count("\n") == 0  # single Dialogue line, no trailing newline
+        assert block.startswith("Dialogue: 0,0:00:00.00,0:00:03.50,Default,,0,0,0,,")
+
+    def test_joins_with_N(self):
+        scene = self._scene()
+        block = scene_ass_block(scene, 0.0, 3.5)
+        assert "Line one.\\NLine two.\\NLine three." in block
+
+    def test_uses_subtitle_lines_not_voice_text(self):
+        scene = self._scene(subtitle_lines=["short"], voice_text="very long narration " * 50)
+        block = scene_ass_block(scene, 0.0, 3.5)
+        assert "short" in block
+        assert "narration" not in block
+
+    def test_fallback_to_voice_text_when_lines_empty(self):
+        scene = self._scene(subtitle_lines=[], voice_text="hello world")
+        block = scene_ass_block(scene, 0.0, 3.5)
+        assert "hello world" in block
+
+    def test_escapes_braces(self):
+        scene = self._scene(subtitle_lines=["Hello {world}"])
+        block = scene_ass_block(scene, 0.0, 3.5)
+        # ASS uses {...} for inline override tags; must escape
+        assert "\\{world\\}" in block
+
+    def test_time_format(self):
+        scene = self._scene()
+        block = scene_ass_block(scene, 28.26, 42.10)
+        assert "0:00:28.26,0:00:42.10" in block

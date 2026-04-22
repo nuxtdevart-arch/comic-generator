@@ -58,3 +58,25 @@ def compute_video_hash(
     h.update(quality.encode("utf-8"))
     h.update(f"{fps}|{resolution[0]}x{resolution[1]}".encode("utf-8"))
     return h.hexdigest()
+
+
+def _escape_ass_text(text: str) -> str:
+    """Escape ASS-special chars in dialogue text."""
+    return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+
+def scene_ass_block(scene, start_sec: float, end_sec: float) -> str:
+    """Build single Dialogue line for a scene.
+
+    Uses subtitle_lines (compact screen text), not voice_text (full TTS narration).
+    """
+    lines = getattr(scene, "subtitle_lines", None) or []
+    if not lines:
+        fallback = getattr(scene, "voice_text", "") or getattr(scene, "text", "")
+        lines = [fallback] if fallback else [""]
+    escaped = [_escape_ass_text(s) for s in lines]
+    text = "\\N".join(escaped)
+    return (
+        f"Dialogue: 0,{_fmt_ass_time(start_sec)},{_fmt_ass_time(end_sec)},"
+        f"Default,,0,0,0,,{text}"
+    )
