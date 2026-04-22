@@ -1,6 +1,7 @@
 """Unit tests for video.py pure helpers."""
 import pytest
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from video import _fmt_ass_time, _hex_to_ass_color, QUALITY_PRESETS, compute_video_hash, scene_ass_block, export_ass
 
@@ -231,3 +232,52 @@ class TestExportAss:
         content = out.read_text(encoding="utf-8")
         # 8% of 1080 = 86
         assert ",86," in content  # MarginV field in Style
+
+
+from video import check_ffmpeg, probe_audio_duration
+
+
+class TestCheckFfmpeg:
+    def test_ok_when_both_present(self):
+        with patch("video.shutil.which", side_effect=lambda x: f"/usr/bin/{x}"):
+            check_ffmpeg()  # no raise
+
+    def test_raises_when_ffmpeg_missing(self):
+        def fake_which(name):
+            return None if name == "ffmpeg" else f"/usr/bin/{name}"
+        with patch("video.shutil.which", side_effect=fake_which):
+            with pytest.raises(RuntimeError, match="ffmpeg not found"):
+                check_ffmpeg()
+
+    def test_raises_when_ffprobe_missing(self):
+        def fake_which(name):
+            return None if name == "ffprobe" else f"/usr/bin/{name}"
+        with patch("video.shutil.which", side_effect=fake_which):
+            with pytest.raises(RuntimeError, match="ffprobe not found"):
+                check_ffmpeg()
+
+
+class TestProbeAudioDuration:
+    def test_parses_stdout(self, tmp_path):
+        fake_mp3 = tmp_path / "a.mp3"
+        fake_mp3.write_bytes(b"not a real mp3")
+        completed = MagicMock()
+        completed.stdout = "28.264489\n"
+        completed.returncode = 0
+        with patch("video.subprocess.run", return_value=completed):
+            dur = probe_audio_duration(fake_mp3)
+        assert abs(dur - 28.264489) < 0.001
+
+    def test_missing_file_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            probe_audio_duration(tmp_path / "does_not_exist.mp3")
+
+    def test_ffprobe_error_raises(self, tmp_path):
+        fake_mp3 = tmp_path / "a.mp3"
+        fake_mp3.write_bytes(b"x")
+        completed = MagicMock()
+        completed.returncode = 1
+        completed.stderr = "invalid data"
+        with patch("video.subprocess.run", return_value=completed):
+            with pytest.raises(RuntimeError, match="ffprobe failed"):
+                probe_audio_duration(fake_mp3)

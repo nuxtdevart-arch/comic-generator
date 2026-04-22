@@ -4,6 +4,8 @@ Pattern mirrors tts.py — standalone module imported by generate_comic.
 """
 import logging
 import hashlib
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -148,3 +150,34 @@ def export_ass(
     out_path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
     log.info("ASS exported → %s (%d cues)", out_path, len(events))
     return out_path
+
+
+def check_ffmpeg() -> None:
+    """Verify ffmpeg and ffprobe are on PATH. Fail-fast with helpful message."""
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError(
+            "ffmpeg not found on PATH. Install from https://ffmpeg.org and "
+            "ensure ffmpeg is callable from the shell."
+        )
+    if shutil.which("ffprobe") is None:
+        raise RuntimeError(
+            "ffprobe not found on PATH (usually shipped with ffmpeg). "
+            "Re-install ffmpeg from https://ffmpeg.org."
+        )
+
+
+def probe_audio_duration(mp3_path) -> float:
+    """Return audio duration in seconds via ffprobe."""
+    p = Path(mp3_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Audio not found: {p}")
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(p),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed for {p}: {result.stderr.strip()}")
+    return float(result.stdout.strip())
