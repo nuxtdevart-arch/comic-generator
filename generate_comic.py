@@ -32,6 +32,7 @@ import random
 import re
 import sys
 import time
+import tts as tts_mod
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
@@ -130,6 +131,12 @@ class Scene:
     pacing: str = "normal"              # "slow" | "normal" | "fast"
     duration_sec: float = 0.0           # estimated clip length
     subtitle_lines: list[str] = field(default_factory=list)
+    # TTS metadata (filled by run_tts_stage)
+    audio_path: str = ""
+    audio_status: str = "pending"       # pending | ok | skipped | error
+    audio_hash: str = ""
+    audio_duration: float = 0.0
+    audio_error: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -804,6 +811,21 @@ def _fmt_srt_time(t: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+def effective_duration(scene: "Scene") -> float:
+    """Prefer real audio duration from TTS; fallback to estimate.
+
+    Priority:
+    1. audio_duration (set by run_tts_stage)
+    2. duration_sec (legacy precomputed estimate)
+    3. estimate_duration(voice_text or text, pacing)
+    """
+    if scene.audio_duration and scene.audio_duration > 0:
+        return float(scene.audio_duration)
+    if scene.duration_sec and scene.duration_sec > 0:
+        return float(scene.duration_sec)
+    return estimate_duration(scene.voice_text or scene.text, scene.pacing)
+
+
 def export_srt(scenes: list[Scene], out_path: Path) -> None:
     cursor = 0.0
     blocks: list[str] = []
@@ -812,8 +834,7 @@ def export_srt(scenes: list[Scene], out_path: Path) -> None:
             continue
         if not scene.voice_text and not scene.subtitle_lines:
             continue
-        dur = scene.duration_sec or estimate_duration(
-            scene.voice_text or scene.text, scene.pacing)
+        dur = effective_duration(scene)
         start = cursor
         end = cursor + dur
         cursor = end
@@ -834,7 +855,8 @@ def export_srt(scenes: list[Scene], out_path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--story", required=True, help="Path to story.txt")
+    ap.add_argument("--story", required=False, default=None,
+                    help="Path to story.txt (required unless --tts-only)")
     ap.add_argument("--characters", default="characters.json")
     ap.add_argument("--output-dir", default="output")
     ap.add_argument("--dry-run", action="store_true",
@@ -855,7 +877,16 @@ def main():
     ap.add_argument("--limit", type=int, default=0,
                     help="Process only first N scenes (0 = all)")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--tts", action="store_true",
+                    help="Generate TTS audio via ElevenLabs after images")
+    ap.add_argument("--tts-only", action="store_true",
+                    help="Skip image stage; (re)generate audio + SRT from existing progress.json")
+    ap.add_argument("--voices", default="voices.json", type=Path,
+                    help="Path to voices.json mapping speakers to ElevenLabs voice configs")
     args = ap.parse_args()
+
+    if not args.tts_only and not args.story:
+        sys.exit("ERROR: --story required unless --tts-only is set")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -868,15 +899,22 @@ def main():
     if not api_key:
         sys.exit("ERROR: set GEMINI_API_KEY env var")
 
-    client = genai.Client(api_key=api_key)
-
-    story = Path(args.story).read_text(encoding="utf-8")
-    chars_path = Path(args.characters)
-    if chars_path.exists():
-        characters = json.loads(chars_path.read_text(encoding="utf-8"))
+    if args.tts or args.tts_only:
+        eleven_key = os.environ.get("ELEVEN_API_KEY")
+        if not eleven_key:
+            sys.exit("ERROR: ELEVEN_API_KEY not set in .env, required for --tts")
+        voices_path = args.voices
+        if not voices_path.exists():
+            sys.exit(f"ERROR: {voices_path} not found (required for --tts)")
+        try:
+            voices = tts_mod.load_voices(voices_path)
+        except (ValueError, FileNotFoundError) as e:
+            sys.exit(f"ERROR: {e}")
     else:
-        characters = {}
-        chars_path.write_text("{}", encoding="utf-8")
+        eleven_key = None
+        voices = None
+
+    client = genai.Client(api_key=api_key)
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -885,6 +923,44 @@ def main():
     design_spec_path = out_dir / "design_spec.json"
     srt_path = out_dir / "subtitles.srt"
     refs_dir = Path("references")
+
+    if args.tts_only:
+        # Ранний путь: ждём уже сгенерированные картинки + prompts.json
+        if not progress_path.exists():
+            sys.exit(f"ERROR: --tts-only requires existing {progress_path}")
+        data = json.loads(progress_path.read_text(encoding="utf-8"))
+        scenes = [Scene(**s) for s in data["scenes"]]
+
+        audio_dir = out_dir / "audio"
+        log.info("TTS-only stage: ElevenLabs → %s", audio_dir)
+        tts_summary = tts_mod.run_tts_stage(
+            scenes=scenes,
+            voices=voices,
+            api_key=eleven_key,
+            audio_dir=audio_dir,
+            save_progress_fn=lambda: save_progress(progress_path, scenes),
+        )
+        log.info("TTS: %d ok, %d skipped, %d error%s",
+                 tts_summary["ok"], tts_summary["skipped"],
+                 tts_summary["error"],
+                 " (ABORTED)" if tts_summary["aborted"] else "")
+
+        # Regenerate SRT с новой длительностью
+        try:
+            export_srt(scenes, srt_path)
+        except Exception as e:
+            log.warning("SRT export failed: %s", e)
+
+        log.info("Done (tts-only).")
+        return
+
+    story = Path(args.story).read_text(encoding="utf-8")
+    chars_path = Path(args.characters)
+    if chars_path.exists():
+        characters = json.loads(chars_path.read_text(encoding="utf-8"))
+    else:
+        characters = {}
+        chars_path.write_text("{}", encoding="utf-8")
 
     # ── BOOTSTRAP: auto-build characters + reference portraits + design spec ─
     if args.bootstrap and not args.resume:
@@ -1028,7 +1104,11 @@ def main():
                            f"{', '.join(missing_refs)}")
         else:
             for cid in scene.character_ids:
-                ref = Path(characters[cid].get("reference_image", ""))
+                char_data = characters.get(cid)
+                if not char_data:
+                    skip_reason = f"unknown character ID: {cid}"
+                    break
+                ref = Path(char_data.get("reference_image", ""))
                 if not ref.exists():
                     skip_reason = f"reference image missing: {ref}"
                     break
@@ -1063,6 +1143,22 @@ def main():
             scene.status = "error"
             scene.error = "image generation failed"
         save_progress(progress_path, scenes)
+
+    # ── TTS stage ────────────────────────────────────────────────────────
+    if args.tts or args.tts_only:
+        audio_dir = out_dir / "audio"
+        log.info("TTS stage: ElevenLabs → %s", audio_dir)
+        tts_summary = tts_mod.run_tts_stage(
+            scenes=scenes,
+            voices=voices,
+            api_key=eleven_key,
+            audio_dir=audio_dir,
+            save_progress_fn=lambda: save_progress(progress_path, scenes),
+        )
+        log.info("TTS: %d ok, %d skipped, %d error%s",
+                 tts_summary["ok"], tts_summary["skipped"],
+                 tts_summary["error"],
+                 " (ABORTED)" if tts_summary["aborted"] else "")
 
     # ── Write final prompts.json ─────────────────────────────────────────
     prompts_path.write_text(

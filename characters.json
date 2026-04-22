@@ -292,5 +292,11 @@
     "reference_image": "references/kolyan.png",
     "description": "Aleksey's cousin, whom he sees only once every five years. He is likely in his late 30s or 40s and makes a dismissive comment about Aleksey's long tenure at the hospital.",
     "_auto_generated": true
+  },
+  "aleksey_0": {
+    "name": "Алексей Мороз",
+    "reference_image": "references/aleksey_0.png",
+    "description": "A newborn baby boy, born in June 1986, appearing calm and perhaps a bit overwhelmed by the sounds around him. He is likely swaddled in a simple blanket.",
+    "_auto_generated": true
   }
 }

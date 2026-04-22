@@ -18,18 +18,15 @@
 
 Сейчас пользователь должен сам гонять `voice_text` через внешний TTS. Это половина всей ручной работы.
 
-- 🔴 **`--tts elevenlabs|yandex|silero`** — флаг для выбора движка.
-- 🔴 **Маппинг speaker → voice_id** в новом `voices.json` (аналог `characters.json`):
-  ```json
-  {
-    "narrator": {"provider": "elevenlabs", "voice_id": "...", "style": "melancholic"},
-    "aleksey_38": {"provider": "elevenlabs", "voice_id": "...", "age": 38}
-  }
-  ```
-- 🔴 **Сохранение аудио**: `output/audio/scene_001.mp3` рядом с кадром.
-- 🟡 **Учёт `emotion` и `pacing`** из сцены в настройках TTS (stability/similarity_boost у ElevenLabs, pitch/rate у Yandex).
-- 🟡 **Нормализация аудио** (ffmpeg loudnorm) — чтобы все клипы были на одном уровне громкости.
-- 🟢 **Кэш TTS** по хешу `voice_text + voice_id` — не перегенерировать повторно.
+- ✅ **`--tts`** — флаг генерации через ElevenLabs (апрель 2026). Yandex/Silero — следующие итерации.
+- ✅ **Маппинг speaker → voice_id** в `voices.json` с fallback-цепочкой `speaker → default → narrator`.
+- ✅ **Сохранение аудио** в `output/audio/scene_NNN.mp3` с атомарной записью.
+- ✅ **Кэш TTS** по hash(text + voice_id + model + settings) — per-scene в progress.json.
+- 🟡 **Учёт emotion/pacing** в настройках TTS — не закрыт (текущая реализация берёт static settings).
+- 🟡 **Нормализация аудио** (ffmpeg loudnorm) — не закрыт (ждёт `--render-video`).
+- 🟢 **Yandex SpeechKit** — следующий подпроект, потребует provider abstraction.
+- 🟢 **Silero** — локальный fallback, следующий подпроект.
+
 
 ---
 
@@ -191,7 +188,7 @@
 
 Если сжатый план на ближайшие итерации:
 
-1. **TTS-интеграция** (пункт 2) — закрывает главную ручную работу, делает пайплайн настоящим end-to-end.
+1. ✅ **TTS-интеграция** (пункт 2) — ElevenLabs end-to-end готов (апрель 2026).
 2. **`--render-video`** (пункт 3) — финальный mp4 одной командой. Логичное продолжение TTS.
 3. **`--scene N` и параллельная генерация** (пункт 1) — быстрый итеративный цикл правок.
 4. **Unit-тесты + schema validation** (пункт 8) — фундамент для всего остального, сейчас рефакторить страшно.

@@ -37,6 +37,7 @@ python generate_comic.py --story story.txt --bootstrap --batch
        ├─ split story ──────► progress.json     (Gemini Flash, детерминированный)
        ├─ batch scene gen ──► prompts.json      (Gemini Batch, 50% дешевле)
        ├─ image gen ────────► output/frame_*.png (nano-banana, N кадров)
+       ├─ TTS stage ────────► output/audio/scene_*.mp3 (ElevenLabs, --tts)
        └─ SRT export ───────► output/subtitles.srt
 ```
 
@@ -57,6 +58,7 @@ python generate_comic.py --story story.txt --bootstrap --batch
 | `generate_character_references` | 645 | Рендер портретов для references/ |
 | `generate_design_spec` | 717 | Spec для субтитров (font/color/position) |
 | `estimate_duration` | 738 | Длительность сцены из voice_text + pacing |
+| `effective_duration` | ~805 | SRT prefers real mp3 duration over estimate |
 | `_fmt_srt_time` | 748 | Форматирование `HH:MM:SS,mmm` |
 | `export_srt` | 756 | Запись `subtitles.srt` |
 | `main` | 784 | CLI argparse + orchestration |
@@ -117,10 +119,11 @@ python generate_comic.py --story story.txt --bootstrap --batch
 - SRT-экспорт с таймингами из `duration_sec` + `pacing`.
 - **Unit-тесты** для 5 чистых функций (`tests/test_pure.py`).
 - **Schema validation** 4 LLM-ответов через pydantic (`schemas.py`), retry-on-fail встроен в `call_llm_json`.
+- **TTS-интеграция (ElevenLabs)** — `--tts`, `--tts-only`, `voices.json`, hash-cache, SRT по реальной длительности.
 
 ### 🚧 В работе (апрель 2026)
 
-Нет активных подпроектов. Следующий — TTS-интеграция.
+Нет активных подпроектов. Следующий — `--render-video` (TODO раздел 3).
 
 **Не входит в текущую итерацию**:
 - Integration-тесты с mock `genai.Client`
@@ -134,7 +137,7 @@ python generate_comic.py --story story.txt --bootstrap --batch
 
 Порядок реализации, утверждённый автором:
 
-1. **TTS-интеграция** (TODO раздел 2): `--tts elevenlabs|yandex|silero`, `voices.json`, `output/audio/scene_*.mp3`
+1. ✅ **TTS-интеграция** (TODO раздел 2) — апрель 2026.
 2. **`--render-video`** (TODO раздел 3): финальная ffmpeg-склейка кадров + голоса + SRT → mp4
 3. **`--scene N` + параллельная генерация** (TODO раздел 1)
 4. **Usage tracking + `--estimate`** (TODO раздел 6)
