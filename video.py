@@ -281,3 +281,30 @@ def render_scene_video(
     scene.video_status = "error"
     scene.video_error = last_err
     raise RuntimeError(f"ffmpeg failed for scene {scene.index}: {last_err}")
+
+
+def concat_scenes(scene_mp4s: list[Path], output_path: Path) -> Path:
+    """Concatenate per-scene mp4s into final output via concat demuxer (no re-encode)."""
+    if not scene_mp4s:
+        raise ValueError("Cannot concat: no scenes provided")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    list_txt = output_path.parent / f"{output_path.stem}_concat.txt"
+    lines = ["ffconcat version 1.0"]
+    for mp4 in scene_mp4s:
+        # ffmpeg concat demuxer wants forward slashes
+        p = str(mp4).replace("\\", "/")
+        lines.append(f"file '{p}'")
+    list_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    out_tmp = output_path.with_suffix(".mp4.tmp")
+    cmd = [
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+        "-i", str(list_txt), "-c", "copy", str(out_tmp),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not out_tmp.exists():
+        last = (result.stderr or "").strip().splitlines()[-1:] or [""]
+        raise RuntimeError(f"concat failed: {last[0]}")
+    out_tmp.replace(output_path)
+    log.info("🎞️  final video → %s (%d scenes)", output_path, len(scene_mp4s))
+    return output_path

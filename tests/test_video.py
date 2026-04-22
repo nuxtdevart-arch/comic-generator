@@ -411,3 +411,49 @@ class TestRenderSceneVideo:
                     )
         assert scene.video_status == "error"
         assert "ffmpeg exploded" in scene.video_error
+
+
+class TestConcatScenes:
+    def test_writes_list_and_invokes_concat(self, tmp_path):
+        from video import concat_scenes
+        mp4s = []
+        for i in range(3):
+            p = tmp_path / f"scene_{i+1:03d}.mp4"
+            p.write_bytes(b"mp4-" + bytes(str(i), "ascii"))
+            mp4s.append(p)
+        out = tmp_path / "comic.mp4"
+        captured_cmds = []
+        def fake_run(cmd, **kw):
+            captured_cmds.append(cmd)
+            Path(cmd[-1]).write_bytes(b"final-mp4")
+            return MagicMock(returncode=0, stderr="")
+        with patch("video.subprocess.run", side_effect=fake_run):
+            result = concat_scenes(mp4s, out)
+        assert result == out
+        assert out.exists()
+        assert len(captured_cmds) == 1
+        cmd = captured_cmds[0]
+        assert "-f" in cmd and "concat" in cmd
+        assert "-safe" in cmd and "0" in cmd
+        assert "-c" in cmd and "copy" in cmd
+        # list.txt written next to output
+        list_txt = next(tmp_path.glob("*.txt"))
+        content = list_txt.read_text(encoding="utf-8")
+        assert content.startswith("ffconcat version 1.0")
+        for mp4 in mp4s:
+            # concat list uses forward slashes (ffmpeg friendly) and 'file' directive
+            assert f"file '{str(mp4).replace(chr(92), '/')}'" in content
+
+    def test_empty_list_raises(self, tmp_path):
+        from video import concat_scenes
+        with pytest.raises(ValueError, match="no scenes"):
+            concat_scenes([], tmp_path / "out.mp4")
+
+    def test_ffmpeg_failure_raises(self, tmp_path):
+        from video import concat_scenes
+        mp4 = tmp_path / "s.mp4"
+        mp4.write_bytes(b"x")
+        with patch("video.subprocess.run",
+                   return_value=MagicMock(returncode=1, stderr="broken")):
+            with pytest.raises(RuntimeError, match="concat failed"):
+                concat_scenes([mp4], tmp_path / "out.mp4")
