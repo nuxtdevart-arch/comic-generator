@@ -21,7 +21,7 @@ references/
 characters.json                         # авто-заполняется из story.txt
 ```
 
-Остаётся только: прогнать `voice_text` через TTS (ElevenLabs / Yandex SpeechKit / Silero) и склеить ffmpeg'ом в видео с субтитрами.
+TTS уже встроен — см. секцию TTS-озвучка ниже. Видеосборка пока через ffmpeg вручную (скоро будет `--render-video`).
 
 ---
 
@@ -192,26 +192,36 @@ SRT экспортируется только из сцен со `status == ok`.
 }
 ```
 
-### TTS (озвучка) — делаешь отдельно
+### `--render-video` / `--render-video-only` — финальный mp4
 
-Берёшь `voice_text` из каждой сцены и гонишь через TTS:
+Собирает готовый mp4 из кадров + аудио + субтитров с вшитой стилизацией из `design_spec.json`.
 
-- **ElevenLabs** v3 — топ качество для RU, ~$0.30/мин. Разные голоса на `speaker: narrator` vs character_id.
-- **Yandex SpeechKit** — лучшая RU-просодия, ~$4/1000 символов.
-- **Silero** — open-source, локально, бесплатно.
+**Требования:** `ffmpeg` + `ffprobe` в PATH. Установка: https://ffmpeg.org.
 
-Передавай `emotion` и `pacing` в настройки TTS если провайдер поддерживает.
-
-### ffmpeg-склейка (пример)
+**Автостадия** (после полного пайплайна):
 
 ```bash
-ffmpeg -framerate 1/5 -i output/frame_%03d.png \
-       -i voice.mp3 \
-       -vf "subtitles=output/subtitles.srt" \
-       -c:v libx264 -pix_fmt yuv420p out.mp4
+python generate_comic.py --story story.txt --bootstrap --batch --tts --render-video
 ```
 
----
+**Standalone** (использует готовые ассеты в `output/`):
+
+```bash
+python generate_comic.py --render-video-only --quality draft
+python generate_comic.py --render-video-only --quality final --output release.mp4
+```
+
+**Флаги:**
+
+- `--quality draft|final` — `draft` 1280×720/ultrafast (для итераций), `final` 1920×1080/medium (для релиза). Default: `draft`.
+- `--output PATH` — путь итогового mp4. Default: `output/comic.mp4`.
+- `--allow-incomplete` — сцены без кадра/аудио скипаются вместо fail-fast.
+
+**Кэш:** per-scene mp4 в `output/video/scene_NNN.mp4` с hash-ключом. Правка одной сцены → перерендер только её. Смена `--quality` → перерендер всех.
+
+**Где берутся субтитры:** текст из `subtitle_lines` (не `voice_text`), стили из `design_spec.json`, длительность = `audio_duration` (реальная длина mp3).
+
+**Ограничения первой итерации:** hard-cut между сценами (без crossfade), статичные кадры (без Ken Burns), без фоновой музыки. 16:9 только.
 
 ## Устойчивость к сбоям
 

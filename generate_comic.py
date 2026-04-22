@@ -137,6 +137,11 @@ class Scene:
     audio_hash: str = ""
     audio_duration: float = 0.0
     audio_error: str = ""
+    # Video metadata (filled by render_video stage)
+    video_path: str = ""
+    video_hash: str = ""
+    video_status: str = "pending"       # pending | ok | skipped | error
+    video_error: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -883,10 +888,21 @@ def main():
                     help="Skip image stage; (re)generate audio + SRT from existing progress.json")
     ap.add_argument("--voices", default="voices.json", type=Path,
                     help="Path to voices.json mapping speakers to ElevenLabs voice configs")
+    ap.add_argument("--render-video", action="store_true",
+                    help="Render final mp4 after image + TTS stages (uses ffmpeg).")
+    ap.add_argument("--render-video-only", action="store_true",
+                    help="Skip all other stages; render final mp4 from existing "
+                         "output/ (frames + audio + design_spec + progress.json).")
+    ap.add_argument("--quality", choices=["draft", "final"], default="draft",
+                    help="Video quality preset. draft=720p/ultrafast, final=1080p/medium.")
+    ap.add_argument("--output", type=Path, default=None,
+                    help="Path for final mp4 (default: output/comic.mp4).")
+    ap.add_argument("--allow-incomplete", action="store_true",
+                    help="Skip scenes missing image/audio instead of fail-fast.")
     args = ap.parse_args()
 
-    if not args.tts_only and not args.story:
-        sys.exit("ERROR: --story required unless --tts-only is set")
+    if not (args.tts_only or args.render_video_only) and not args.story:
+        sys.exit("ERROR: --story required unless --tts-only or --render-video-only is set")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -952,6 +968,30 @@ def main():
             log.warning("SRT export failed: %s", e)
 
         log.info("Done (tts-only).")
+        return
+
+    if args.render_video_only:
+        if not progress_path.exists():
+            sys.exit(f"ERROR: --render-video-only requires {progress_path}")
+        if not design_spec_path.exists():
+            sys.exit(f"ERROR: --render-video-only requires {design_spec_path}")
+        import video as video_mod
+        data = json.loads(progress_path.read_text(encoding="utf-8"))
+        scenes = [Scene(**s) for s in data["scenes"]]
+        design_spec = json.loads(design_spec_path.read_text(encoding="utf-8"))
+        output_path = args.output or (out_dir / "comic.mp4")
+        log.info("Render-video-only stage: %s (quality=%s)", output_path, args.quality)
+        try:
+            final_mp4 = video_mod.render_video(
+                scenes=scenes, design_spec=design_spec,
+                quality=args.quality, output=output_path,
+                allow_incomplete=args.allow_incomplete,
+                output_dir=out_dir,
+                save_progress_fn=lambda: save_progress(progress_path, scenes),
+            )
+        except RuntimeError as e:
+            sys.exit(f"ERROR: {e}")
+        log.info("Final video: %s", final_mp4)
         return
 
     story = Path(args.story).read_text(encoding="utf-8")
@@ -1172,6 +1212,27 @@ def main():
         export_srt(scenes, srt_path)
     except Exception as e:
         log.warning("SRT export failed: %s", e)
+
+    # ── Video render stage ───────────────────────────────────────────────
+    if args.render_video:
+        if not design_spec_path.exists():
+            log.error("--render-video requires design_spec.json; skipping.")
+        else:
+            import video as video_mod
+            design_spec = json.loads(design_spec_path.read_text(encoding="utf-8"))
+            output_path = args.output or (out_dir / "comic.mp4")
+            log.info("Render-video stage: %s (quality=%s)", output_path, args.quality)
+            try:
+                final_mp4 = video_mod.render_video(
+                    scenes=scenes, design_spec=design_spec,
+                    quality=args.quality, output=output_path,
+                    allow_incomplete=args.allow_incomplete,
+                    output_dir=out_dir,
+                    save_progress_fn=lambda: save_progress(progress_path, scenes),
+                )
+                log.info("Final video: %s", final_mp4)
+            except RuntimeError as e:
+                log.error("Video render failed: %s", e)
 
     log.info("Done. %d ok, %d skipped, %d error. Prompts: %s",
              sum(1 for s in scenes if s.status == "ok"),
