@@ -80,3 +80,71 @@ def scene_ass_block(scene, start_sec: float, end_sec: float) -> str:
         f"Dialogue: 0,{_fmt_ass_time(start_sec)},{_fmt_ass_time(end_sec)},"
         f"Default,,0,0,0,,{text}"
     )
+
+
+_POSITION_TO_ALIGNMENT = {
+    "bottom_centered": 2, "bottom_center": 2, "bottom-center": 2,
+    "bottom_left": 1, "bottom_right": 3,
+    "mid_centered": 5, "middle_center": 5,
+    "top_centered": 8, "top_center": 8,
+}
+
+
+def _style_line_from_spec(design_spec: dict, resolution: tuple[int, int]) -> str:
+    """Build 'Style: Default,...' line from design_spec."""
+    font = design_spec.get("font_family", "Arial")
+    size = int(design_spec.get("font_size_px", 42))
+    primary = _hex_to_ass_color(design_spec.get("color_fg", "#FFFFFF"))
+    outline_color = _hex_to_ass_color(design_spec.get("stroke_color", "#000000"))
+    outline = int(design_spec.get("stroke_px", 2))
+    alignment = _POSITION_TO_ALIGNMENT.get(design_spec.get("position", "bottom_centered"), 2)
+    margin_v = int(resolution[1] * design_spec.get("margin_bottom_pct", 8) / 100)
+    # V4+ Style fields (30):
+    # Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,
+    # Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle,
+    # Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+    return (
+        f"Style: Default,{font},{size},{primary},&H000000FF,{outline_color},&H00000000,"
+        f"0,0,0,0,100,100,0,0,1,{outline},0,{alignment},20,20,{margin_v},1"
+    )
+
+
+_ASS_HEADER_TEMPLATE = """\
+[Script Info]
+ScriptType: v4.00+
+PlayResX: {w}
+PlayResY: {h}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+{style}
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+
+def export_ass(
+    design_spec: dict,
+    scenes: list,
+    effective_durations: list[float],
+    out_path: Path,
+    resolution: tuple[int, int],
+) -> Path:
+    """Write a standalone subtitles.ass from design_spec + scenes."""
+    w, h = resolution
+    style_line = _style_line_from_spec(design_spec, resolution)
+    header = _ASS_HEADER_TEMPLATE.format(w=w, h=h, style=style_line)
+    events: list[str] = []
+    cursor = 0.0
+    for scene, dur in zip(scenes, effective_durations):
+        if getattr(scene, "status", "ok") != "ok":
+            continue
+        start, end = cursor, cursor + dur
+        cursor = end
+        events.append(scene_ass_block(scene, start, end))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
+    log.info("ASS exported → %s (%d cues)", out_path, len(events))
+    return out_path

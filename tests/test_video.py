@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 
-from video import _fmt_ass_time, _hex_to_ass_color, QUALITY_PRESETS, compute_video_hash, scene_ass_block
+from video import _fmt_ass_time, _hex_to_ass_color, QUALITY_PRESETS, compute_video_hash, scene_ass_block, export_ass
 
 
 class TestFmtAssTime:
@@ -147,3 +147,87 @@ class TestSceneAssBlock:
         scene = self._scene()
         block = scene_ass_block(scene, 28.26, 42.10)
         assert "0:00:28.26,0:00:42.10" in block
+
+
+class TestExportAss:
+    @pytest.fixture
+    def design_spec(self):
+        return {
+            "font_family": "Arial",
+            "font_size_px": 42,
+            "color_fg": "#F0F0F0",
+            "stroke_color": "#000000",
+            "stroke_px": 2,
+            "position": "bottom_centered",
+            "margin_bottom_pct": 8,
+        }
+
+    @pytest.fixture
+    def scenes(self):
+        def mk(lines, dur, status="ok"):
+            return type("S", (), {
+                "subtitle_lines": lines, "voice_text": "", "text": "",
+                "status": status, "audio_duration": dur,
+                "duration_sec": dur, "pacing": "normal",
+            })()
+        return [
+            mk(["first"], 2.0),
+            mk(["second"], 3.0),
+            mk(["third"], 4.0),
+        ]
+
+    def test_writes_file(self, tmp_path, design_spec, scenes):
+        out = tmp_path / "subs.ass"
+        result = export_ass(design_spec, scenes, [2.0, 3.0, 4.0], out, resolution=(1920, 1080))
+        assert result == out
+        assert out.exists()
+
+    def test_structure(self, tmp_path, design_spec, scenes):
+        out = tmp_path / "subs.ass"
+        export_ass(design_spec, scenes, [2.0, 3.0, 4.0], out, resolution=(1920, 1080))
+        content = out.read_text(encoding="utf-8")
+        assert "[Script Info]" in content
+        assert "[V4+ Styles]" in content
+        assert "[Events]" in content
+        assert "Format: Name, Fontname, Fontsize" in content  # V4+ Styles header
+        assert "Style: Default,Arial,42," in content
+
+    def test_dialogue_times_cumulative(self, tmp_path, design_spec, scenes):
+        out = tmp_path / "subs.ass"
+        export_ass(design_spec, scenes, [2.0, 3.0, 4.0], out, resolution=(1920, 1080))
+        content = out.read_text(encoding="utf-8")
+        # Scene 1: 0.00-2.00
+        assert "Dialogue: 0,0:00:00.00,0:00:02.00" in content
+        # Scene 2: 2.00-5.00
+        assert "Dialogue: 0,0:00:02.00,0:00:05.00" in content
+        # Scene 3: 5.00-9.00
+        assert "Dialogue: 0,0:00:05.00,0:00:09.00" in content
+
+    def test_skips_non_ok_scenes(self, tmp_path, design_spec):
+        scenes = [
+            type("S", (), {"subtitle_lines": ["ok one"], "voice_text": "", "text": "",
+                           "status": "ok", "audio_duration": 2.0,
+                           "duration_sec": 2.0, "pacing": "normal"})(),
+            type("S", (), {"subtitle_lines": ["err"], "voice_text": "", "text": "",
+                           "status": "error", "audio_duration": 1.0,
+                           "duration_sec": 1.0, "pacing": "normal"})(),
+        ]
+        out = tmp_path / "subs.ass"
+        export_ass(design_spec, scenes, [2.0, 1.0], out, resolution=(1920, 1080))
+        content = out.read_text(encoding="utf-8")
+        assert "ok one" in content
+        assert "err" not in content
+
+    def test_resolution_in_playres(self, tmp_path, design_spec, scenes):
+        out = tmp_path / "subs.ass"
+        export_ass(design_spec, scenes, [2.0, 3.0, 4.0], out, resolution=(1280, 720))
+        content = out.read_text(encoding="utf-8")
+        assert "PlayResX: 1280" in content
+        assert "PlayResY: 720" in content
+
+    def test_margin_from_pct(self, tmp_path, design_spec, scenes):
+        out = tmp_path / "subs.ass"
+        export_ass(design_spec, scenes, [2.0, 3.0, 4.0], out, resolution=(1920, 1080))
+        content = out.read_text(encoding="utf-8")
+        # 8% of 1080 = 86
+        assert ",86," in content  # MarginV field in Style
