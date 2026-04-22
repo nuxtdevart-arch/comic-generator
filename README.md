@@ -21,7 +21,7 @@ references/
 characters.json                         # авто-заполняется из story.txt
 ```
 
-Остаётся только: прогнать `voice_text` через TTS (ElevenLabs / Yandex SpeechKit / Silero) и склеить ffmpeg'ом в видео с субтитрами.
+TTS уже встроен — см. секцию TTS-озвучка ниже. Видеосборка пока через ffmpeg вручную (скоро будет `--render-video`).
 
 ---
 
@@ -192,18 +192,9 @@ SRT экспортируется только из сцен со `status == ok`.
 }
 ```
 
-### TTS (озвучка) — делаешь отдельно
-
-Берёшь `voice_text` из каждой сцены и гонишь через TTS:
-
-- **ElevenLabs** v3 — топ качество для RU, ~$0.30/мин. Разные голоса на `speaker: narrator` vs character_id.
-- **Yandex SpeechKit** — лучшая RU-просодия, ~$4/1000 символов.
-- **Silero** — open-source, локально, бесплатно.
-
-Передавай `emotion` и `pacing` в настройки TTS если провайдер поддерживает.
-
 ### ffmpeg-склейка (пример)
 
+Временно: пока нет `--render-video`, склейка руками:
 ```bash
 ffmpeg -framerate 1/5 -i output/frame_%03d.png \
        -i voice.mp3 \
