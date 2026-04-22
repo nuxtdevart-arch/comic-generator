@@ -229,6 +229,39 @@ ffmpeg -framerate 1/5 -i output/frame_%03d.png \
 
 ---
 
+## TTS-озвучка (ElevenLabs)
+
+Пайплайн умеет автоматически озвучивать сцены через ElevenLabs.
+
+### Настройка
+1. Получить API-ключ на https://elevenlabs.io/app/settings/api-keys
+2. Добавить в `.env`:
+   ```
+   ELEVEN_API_KEY=your-key-here
+   ```
+3. Отредактировать `voices.json` — прописать `voice_id` для narrator'а и персонажей.
+   Voice_id берётся из Voice Library или из URL голоса на сайте ElevenLabs.
+
+### Запуск
+```bash
+# Полный пайплайн + TTS
+python generate_comic.py --story story.txt --batch --tts
+
+# Только TTS по готовому output/ (без пересбора картинок)
+python generate_comic.py --tts-only
+```
+
+После — `output/audio/scene_NNN.mp3` рядом с кадрами, `subtitles.srt` с точной длительностью.
+
+### Кэш
+Каждая сцена хешируется (text + voice_id + model + settings). Повторный запуск пропускает всё неизменённое. Меняешь голос в `voices.json` — автоматическая перегенерация.
+
+### Ошибки
+- Сбой провайдера на одной сцене → `audio_status=error`, остальные продолжают.
+- 5 ошибок подряд → stage aborted, остальные сцены остаются `pending`, перезапусти позже.
+
+---
+
 ## Тесты
 
 ```bash
