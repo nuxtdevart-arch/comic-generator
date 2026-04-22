@@ -7,6 +7,7 @@ import hashlib
 import shutil
 import subprocess
 import time
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -291,15 +292,16 @@ def concat_scenes(scene_mp4s: list[Path], output_path: Path) -> Path:
     list_txt = output_path.parent / f"{output_path.stem}_concat.txt"
     lines = ["ffconcat version 1.0"]
     for mp4 in scene_mp4s:
-        # ffmpeg concat demuxer wants forward slashes
-        p = str(mp4).replace("\\", "/")
+        # ffmpeg concat demuxer wants forward slashes and paths relative to list.txt
+        rel_p = os.path.relpath(mp4, output_path.parent)
+        p = rel_p.replace("\\", "/")
         lines.append(f"file '{p}'")
     list_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     out_tmp = output_path.with_suffix(".mp4.tmp")
     cmd = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-        "-i", str(list_txt), "-c", "copy", str(out_tmp),
+        "-i", str(list_txt), "-c", "copy", "-f", "mp4", str(out_tmp),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0 or not out_tmp.exists():
