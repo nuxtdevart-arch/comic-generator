@@ -308,3 +308,113 @@ def concat_scenes(scene_mp4s: list[Path], output_path: Path) -> Path:
     out_tmp.replace(output_path)
     log.info("🎞️  final video → %s (%d scenes)", output_path, len(scene_mp4s))
     return output_path
+
+
+def _effective_duration_for_video(scene) -> float:
+    """Mirror generate_comic.effective_duration logic for video pipeline."""
+    if getattr(scene, "audio_duration", 0) and scene.audio_duration > 0:
+        return float(scene.audio_duration)
+    if getattr(scene, "duration_sec", 0) and scene.duration_sec > 0:
+        return float(scene.duration_sec)
+    # Last-resort estimate (import lazily to avoid cycle)
+    from generate_comic import estimate_duration
+    return estimate_duration(scene.voice_text or scene.text,
+                             getattr(scene, "pacing", "normal"))
+
+
+def render_video(
+    scenes: list,
+    design_spec: dict,
+    quality: str,
+    output: Path,
+    allow_incomplete: bool,
+    output_dir: Path,
+    save_progress_fn=None,
+) -> Path:
+    """Orchestrate: validate → export ASS → render per-scene → concat final mp4.
+
+    Args:
+        scenes: list of Scene objects (with image_path, audio_path, subtitle_lines).
+        design_spec: dict loaded from design_spec.json.
+        quality: "draft" or "final".
+        output: path to final mp4.
+        allow_incomplete: if False, missing image/audio raises; if True, skip.
+        output_dir: base output dir (for per-scene mp4s and subs.ass).
+        save_progress_fn: optional callback to persist progress.json after each scene.
+
+    Returns:
+        Path to final mp4.
+    """
+    check_ffmpeg()
+    if quality not in QUALITY_PRESETS:
+        raise ValueError(f"Unknown quality {quality!r}. Use: draft|final")
+    preset = QUALITY_PRESETS[quality]
+
+    renderable = []
+    for scene in scenes:
+        if getattr(scene, "status", "ok") != "ok":
+            continue
+        img_ok = scene.image_path and Path(scene.image_path).exists()
+        aud_ok = scene.audio_path and Path(scene.audio_path).exists()
+        if not img_ok:
+            msg = f"scene {scene.index}: missing image {scene.image_path!r}"
+            if not allow_incomplete:
+                raise RuntimeError(msg)
+            log.warning("%s — skipping (--allow-incomplete)", msg)
+            scene.video_status = "skipped"
+            continue
+        if not aud_ok:
+            msg = f"scene {scene.index}: missing audio {scene.audio_path!r}"
+            if not allow_incomplete:
+                raise RuntimeError(msg)
+            log.warning("%s — skipping (--allow-incomplete)", msg)
+            scene.video_status = "skipped"
+            continue
+        renderable.append(scene)
+
+    if not renderable:
+        raise RuntimeError("No renderable scenes (all missing assets or error state)")
+
+    # Compute effective durations for rendered scenes only
+    durations = [_effective_duration_for_video(s) for s in renderable]
+
+    # Export ASS (only for scenes that will be rendered, to align timings)
+    scene_video_dir = output_dir / "video"
+    ass_path = output_dir / "subtitles.ass"
+    export_ass(design_spec, renderable, durations, ass_path,
+               resolution=preset["res"])
+
+    # Render per-scene
+    cursor = 0.0
+    mp4s = []
+    for scene, dur in zip(renderable, durations):
+        start, end = cursor, cursor + dur
+        cursor = end
+        try:
+            mp4 = render_scene_video(
+                scene=scene, start_sec=start, end_sec=end,
+                ass_path=ass_path, output_dir=scene_video_dir,
+                quality=quality,
+            )
+            mp4s.append(mp4)
+        except RuntimeError as e:
+            log.error("scene %d failed: %s", scene.index, e)
+            # video_status already set to "error" by render_scene_video
+        if save_progress_fn:
+            save_progress_fn()
+
+    errored = [s for s in renderable if s.video_status == "error"]
+    if errored and not allow_incomplete:
+        idxs = ", ".join(str(s.index) for s in errored)
+        raise RuntimeError(
+            f"{len(errored)} scene(s) failed video render: {idxs}. "
+            f"Fix and re-run, or use --allow-incomplete."
+        )
+    if errored:
+        idxs = ", ".join(str(s.index) for s in errored)
+        log.warning("Concatenating without %d failed scene(s): %s", len(errored), idxs)
+
+    if not mp4s:
+        raise RuntimeError("No scenes rendered successfully")
+
+    return concat_scenes(mp4s, output)

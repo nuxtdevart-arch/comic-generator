@@ -457,3 +457,111 @@ class TestConcatScenes:
                    return_value=MagicMock(returncode=1, stderr="broken")):
             with pytest.raises(RuntimeError, match="concat failed"):
                 concat_scenes([mp4], tmp_path / "out.mp4")
+
+
+class TestRenderVideoOrchestrator:
+    @pytest.fixture
+    def scenes_and_files(self, tmp_path):
+        from generate_comic import Scene
+        out_dir = tmp_path / "output"
+        (out_dir / "audio").mkdir(parents=True)
+        scenes = []
+        for i in range(1, 4):
+            img = out_dir / f"frame_{i:03d}.png"
+            img.write_bytes(b"png")
+            audio = out_dir / "audio" / f"scene_{i:03d}.mp3"
+            audio.write_bytes(b"mp3")
+            scenes.append(Scene(
+                index=i, text="t",
+                subtitle_lines=[f"line {i}"],
+                status="ok",
+                image_path=str(img),
+                audio_path=str(audio),
+                audio_duration=2.0,
+                duration_sec=2.0,
+            ))
+        design_spec = {
+            "font_family": "Arial", "font_size_px": 42,
+            "color_fg": "#FFFFFF", "stroke_color": "#000000",
+            "stroke_px": 2, "position": "bottom_centered",
+            "margin_bottom_pct": 8,
+        }
+        return scenes, design_spec, out_dir
+
+    def test_fail_fast_missing_image(self, scenes_and_files, tmp_path):
+        from video import render_video
+        scenes, design_spec, out_dir = scenes_and_files
+        Path(scenes[1].image_path).unlink()
+        with pytest.raises(RuntimeError, match="missing image"):
+            render_video(
+                scenes=scenes, design_spec=design_spec,
+                quality="draft", output=tmp_path / "comic.mp4",
+                allow_incomplete=False, output_dir=out_dir,
+            )
+
+    def test_allow_incomplete_skips_missing(self, scenes_and_files, tmp_path):
+        from video import render_video
+        scenes, design_spec, out_dir = scenes_and_files
+        Path(scenes[1].image_path).unlink()
+        def fake_run(cmd, **kw):
+            Path(cmd[-1]).write_bytes(b"mp4")
+            return MagicMock(returncode=0, stderr="")
+        with patch("video.subprocess.run", side_effect=fake_run):
+            with patch("video.check_ffmpeg"):
+                result = render_video(
+                    scenes=scenes, design_spec=design_spec,
+                    quality="draft", output=tmp_path / "comic.mp4",
+                    allow_incomplete=True, output_dir=out_dir,
+                )
+        assert result.exists()
+        assert scenes[1].video_status == "skipped"
+
+    def test_full_path_invokes_ffmpeg_per_scene_plus_concat(
+        self, scenes_and_files, tmp_path,
+    ):
+        from video import render_video
+        scenes, design_spec, out_dir = scenes_and_files
+        call_log = []
+        def fake_run(cmd, **kw):
+            call_log.append(cmd[0:2])
+            Path(cmd[-1]).write_bytes(b"mp4")
+            return MagicMock(returncode=0, stderr="")
+        with patch("video.subprocess.run", side_effect=fake_run):
+            with patch("video.check_ffmpeg"):
+                render_video(
+                    scenes=scenes, design_spec=design_spec,
+                    quality="draft", output=tmp_path / "comic.mp4",
+                    allow_incomplete=False, output_dir=out_dir,
+                )
+        # 3 per-scene + 1 concat
+        assert len(call_log) == 4
+
+    def test_idempotent_second_run(self, scenes_and_files, tmp_path):
+        """Second run skips per-scene ffmpeg (hash match), runs only concat."""
+        from video import render_video
+        scenes, design_spec, out_dir = scenes_and_files
+        def fake_run(cmd, **kw):
+            Path(cmd[-1]).write_bytes(b"mp4")
+            return MagicMock(returncode=0, stderr="")
+        with patch("video.subprocess.run", side_effect=fake_run):
+            with patch("video.check_ffmpeg"):
+                render_video(
+                    scenes=scenes, design_spec=design_spec,
+                    quality="draft", output=tmp_path / "comic.mp4",
+                    allow_incomplete=False, output_dir=out_dir,
+                )
+        # second call
+        call_log = []
+        def fake_run2(cmd, **kw):
+            call_log.append(cmd[0:2])
+            Path(cmd[-1]).write_bytes(b"mp4")
+            return MagicMock(returncode=0, stderr="")
+        with patch("video.subprocess.run", side_effect=fake_run2):
+            with patch("video.check_ffmpeg"):
+                render_video(
+                    scenes=scenes, design_spec=design_spec,
+                    quality="draft", output=tmp_path / "comic.mp4",
+                    allow_incomplete=False, output_dir=out_dir,
+                )
+        # only concat, no per-scene
+        assert len(call_log) == 1
