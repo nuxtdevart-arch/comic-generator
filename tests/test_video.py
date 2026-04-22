@@ -299,3 +299,115 @@ class TestSceneVideoFields:
         assert "video_path" in d
         assert "video_hash" in d
         assert "video_status" in d
+
+
+class TestRenderSceneVideo:
+    @pytest.fixture
+    def scene(self, tmp_path):
+        img = tmp_path / "frame.png"
+        img.write_bytes(b"png")
+        audio = tmp_path / "audio.mp3"
+        audio.write_bytes(b"mp3")
+        from generate_comic import Scene
+        return Scene(
+            index=1, text="t",
+            subtitle_lines=["hello"],
+            status="ok",
+            image_path=str(img),
+            audio_path=str(audio),
+            audio_duration=3.0,
+        )
+
+    def test_skips_when_hash_matches(self, tmp_path, scene):
+        from video import render_scene_video
+        out_mp4 = tmp_path / "video" / "scene_001.mp4"
+        out_mp4.parent.mkdir()
+        out_mp4.write_bytes(b"existing-video")
+        # Precompute expected hash and set it on scene
+        ass_path = tmp_path / "subs.ass"
+        ass_path.write_text("[Events]\nDialogue: fake\n", encoding="utf-8")
+        with patch("video.subprocess.run") as srun:
+            from video import compute_video_hash, QUALITY_PRESETS, scene_ass_block
+            preset = QUALITY_PRESETS["draft"]
+            expected_hash = compute_video_hash(
+                img_path=Path(scene.image_path),
+                audio_path=Path(scene.audio_path),
+                ass_block=scene_ass_block(scene, 0.0, 3.0),
+                quality="draft", fps=preset["fps"], resolution=preset["res"],
+            )
+            scene.video_hash = expected_hash
+            scene.video_path = str(out_mp4)
+            scene.video_status = "ok"
+            result = render_scene_video(
+                scene=scene, start_sec=0.0, end_sec=3.0,
+                ass_path=ass_path, output_dir=out_mp4.parent,
+                quality="draft",
+            )
+            assert result == out_mp4
+            srun.assert_not_called()  # skipped
+
+    def test_invokes_ffmpeg_when_hash_mismatch(self, tmp_path, scene):
+        from video import render_scene_video
+        out_dir = tmp_path / "video"
+        out_dir.mkdir()
+        ass_path = tmp_path / "subs.ass"
+        ass_path.write_text("x", encoding="utf-8")
+        completed = MagicMock(returncode=0, stderr="")
+        def fake_run(cmd, **kw):
+            # ffmpeg must write output path (last arg) to simulate success
+            Path(cmd[-1]).write_bytes(b"fake-mp4")
+            return completed
+        with patch("video.subprocess.run", side_effect=fake_run) as srun:
+            result = render_scene_video(
+                scene=scene, start_sec=0.0, end_sec=3.0,
+                ass_path=ass_path, output_dir=out_dir,
+                quality="draft",
+            )
+        assert result.exists()
+        assert srun.call_count == 1
+        assert scene.video_status == "ok"
+        assert scene.video_hash  # set
+
+    def test_retries_on_failure(self, tmp_path, scene):
+        from video import render_scene_video
+        out_dir = tmp_path / "video"
+        out_dir.mkdir()
+        ass_path = tmp_path / "subs.ass"
+        ass_path.write_text("x", encoding="utf-8")
+        fail = MagicMock(returncode=1, stderr="ffmpeg exploded")
+        success = MagicMock(returncode=0, stderr="")
+        call_log = []
+        def fake_run(cmd, **kw):
+            call_log.append(cmd)
+            if len(call_log) < 3:
+                return fail
+            Path(cmd[-1]).write_bytes(b"ok")
+            return success
+        with patch("video.subprocess.run", side_effect=fake_run):
+            with patch("video.time.sleep"):  # skip backoff
+                result = render_scene_video(
+                    scene=scene, start_sec=0.0, end_sec=3.0,
+                    ass_path=ass_path, output_dir=out_dir,
+                    quality="draft",
+                )
+        assert result.exists()
+        assert len(call_log) == 3
+        assert scene.video_status == "ok"
+
+    def test_sets_error_after_max_retries(self, tmp_path, scene):
+        from video import render_scene_video, VIDEO_MAX_RETRIES
+        out_dir = tmp_path / "video"
+        out_dir.mkdir()
+        ass_path = tmp_path / "subs.ass"
+        ass_path.write_text("x", encoding="utf-8")
+        fail = MagicMock(returncode=1, stderr="ffmpeg exploded")
+        with patch("video.subprocess.run", return_value=fail):
+            with patch("video.time.sleep"):
+                with pytest.raises(RuntimeError, match="ffmpeg failed"):
+                    render_scene_video(
+                        scene=scene, start_sec=0.0, end_sec=3.0,
+                        ass_path=ass_path, output_dir=out_dir,
+                        quality="draft",
+                    )
+        assert scene.video_status == "error"
+        assert "ffmpeg exploded" in scene.video_error

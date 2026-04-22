@@ -6,6 +6,7 @@ import logging
 import hashlib
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -181,3 +182,102 @@ def probe_audio_duration(mp3_path) -> float:
     if result.returncode != 0:
         raise RuntimeError(f"ffprobe failed for {p}: {result.stderr.strip()}")
     return float(result.stdout.strip())
+
+
+VIDEO_MAX_RETRIES = 3
+VIDEO_RETRY_BACKOFF = [2.0, 8.0]  # seconds between tries
+
+
+def _build_ffmpeg_cmd(
+    image_path: Path, audio_path: Optional[Path], ass_path: Path,
+    duration: float, out_tmp: Path, preset: dict,
+) -> list[str]:
+    w, h = preset["res"]
+    # ass filter needs forward slashes even on Windows
+    ass_arg = str(ass_path).replace("\\", "/")
+    # Escape colon for ffmpeg filter string
+    ass_arg = ass_arg.replace(":", "\\:")
+    vf = f"scale={w}:{h}:force_original_aspect_ratio=decrease," \
+         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,ass='{ass_arg}'"
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1", "-i", str(image_path),
+    ]
+    if audio_path is not None and Path(audio_path).exists():
+        cmd += ["-i", str(audio_path)]
+    cmd += [
+        "-vf", vf,
+        "-t", f"{duration:.3f}",
+        "-c:v", "libx264",
+        "-crf", str(preset["crf"]),
+        "-preset", preset["preset"],
+        "-pix_fmt", "yuv420p",
+        "-r", str(preset["fps"]),
+    ]
+    if audio_path is not None and Path(audio_path).exists():
+        cmd += ["-c:a", "aac", "-b:a", "192k"]
+    else:
+        cmd += ["-an"]
+    cmd += ["-movflags", "+faststart", "-f", "mp4", str(out_tmp)]
+    return cmd
+
+
+def render_scene_video(
+    scene,
+    start_sec: float,
+    end_sec: float,
+    ass_path: Path,
+    output_dir: Path,
+    quality: str,
+) -> Path:
+    """Render single scene to mp4. Idempotent via hash-check. Atomic write."""
+    preset = QUALITY_PRESETS[quality]
+    duration = end_sec - start_sec
+    image_path = Path(scene.image_path)
+    audio_path = Path(scene.audio_path) if scene.audio_path else None
+
+    ass_block = scene_ass_block(scene, start_sec, end_sec)
+    expected_hash = compute_video_hash(
+        img_path=image_path, audio_path=audio_path, ass_block=ass_block,
+        quality=quality, fps=preset["fps"], resolution=preset["res"],
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_mp4 = output_dir / f"scene_{scene.index:03d}.mp4"
+
+    if (scene.video_hash == expected_hash
+            and out_mp4.exists()
+            and scene.video_status == "ok"):
+        log.info("🎬 scene %d: cached, skip", scene.index)
+        return out_mp4
+
+    out_tmp = out_mp4.with_suffix(".mp4.tmp")
+    cmd = _build_ffmpeg_cmd(image_path, audio_path, ass_path,
+                            duration, out_tmp, preset)
+
+    last_err = ""
+    for attempt in range(VIDEO_MAX_RETRIES):
+        t0 = time.monotonic()
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0 and out_tmp.exists():
+            out_tmp.replace(out_mp4)
+            elapsed = time.monotonic() - t0
+            log.info("🎬 scene %d rendered in %.1fs", scene.index, elapsed)
+            scene.video_path = str(out_mp4)
+            scene.video_hash = expected_hash
+            scene.video_status = "ok"
+            scene.video_error = ""
+            return out_mp4
+        last_err = (result.stderr or "").strip().splitlines()[-1:] or [""]
+        last_err = last_err[0]
+        if attempt < VIDEO_MAX_RETRIES - 1:
+            delay = VIDEO_RETRY_BACKOFF[min(attempt, len(VIDEO_RETRY_BACKOFF) - 1)]
+            log.warning("scene %d ffmpeg failed (attempt %d/%d): %s — retry in %.1fs",
+                        scene.index, attempt + 1, VIDEO_MAX_RETRIES, last_err, delay)
+            time.sleep(delay)
+        if out_tmp.exists():
+            out_tmp.unlink()
+
+    scene.video_status = "error"
+    scene.video_error = last_err
+    raise RuntimeError(f"ffmpeg failed for scene {scene.index}: {last_err}")
