@@ -1,5 +1,6 @@
 """Unit tests for video.py pure helpers."""
 import pytest
+import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -442,7 +443,9 @@ class TestConcatScenes:
         assert content.startswith("ffconcat version 1.0")
         for mp4 in mp4s:
             # concat list uses forward slashes (ffmpeg friendly) and 'file' directive
-            assert f"file '{str(mp4).replace(chr(92), '/')}'" in content
+            # implementation uses relpath relative to output_path.parent
+            rel_p = os.path.relpath(mp4, out.parent).replace("\\", "/")
+            assert f"file '{rel_p}'" in content
 
     def test_empty_list_raises(self, tmp_path):
         from video import concat_scenes
