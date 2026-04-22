@@ -137,6 +137,11 @@ class Scene:
     audio_hash: str = ""
     audio_duration: float = 0.0
     audio_error: str = ""
+    # Video metadata (filled by render_video stage)
+    video_path: str = ""
+    video_hash: str = ""
+    video_status: str = "pending"       # pending | ok | skipped | error
+    video_error: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────

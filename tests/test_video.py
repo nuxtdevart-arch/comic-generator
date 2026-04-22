@@ -281,3 +281,21 @@ class TestProbeAudioDuration:
         with patch("video.subprocess.run", return_value=completed):
             with pytest.raises(RuntimeError, match="ffprobe failed"):
                 probe_audio_duration(fake_mp3)
+
+
+class TestSceneVideoFields:
+    def test_scene_has_video_fields(self):
+        from generate_comic import Scene
+        s = Scene(index=1, text="hello")
+        assert s.video_path == ""
+        assert s.video_hash == ""
+        assert s.video_status == "pending"
+
+    def test_scene_video_fields_in_asdict(self):
+        from generate_comic import Scene
+        from dataclasses import asdict
+        s = Scene(index=1, text="hello")
+        d = asdict(s)
+        assert "video_path" in d
+        assert "video_hash" in d
+        assert "video_status" in d
