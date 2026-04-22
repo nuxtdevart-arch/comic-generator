@@ -1,6 +1,6 @@
 {
   "narrator": {
-    "voice_id": "pNInz6ovClqMvhaFY6HZ",
+    "voice_id": "JBFqnCBsd6RMkjVDRZzb",
     "model_id": "eleven_multilingual_v2",
     "settings": {
       "stability": 0.5,
@@ -10,6 +10,6 @@
     }
   },
   "default": {
-    "voice_id": "pNInz6ovClqMvhaFY6HZ"
+    "voice_id": "JBFqnCBsd6RMkjVDRZzb"
   }
 }
