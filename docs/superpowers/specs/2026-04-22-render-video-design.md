@@ -124,7 +124,7 @@ ffmpeg -y -f concat -safe 0 -i concat_list.txt -c copy <output>.tmp
 | `probe_audio_duration(mp3_path) -> float` | Обёртка над `ffprobe -show_entries format=duration`. Для `effective_duration`. |
 | `_hex_to_ass_color(hex_str) -> str` | `#RRGGBB` → `&H00BBGGRR` (ASS BGR + alpha). |
 | `_fmt_ass_time(seconds) -> str` | `3.456` → `0:00:03.46` (centiseconds, не мс). |
-| `scene_ass_block(idx, scenes, durations) -> str` | Одна строка `Dialogue:` для сцены. Используется в hash. |
+| `scene_ass_block(idx, scenes, durations) -> str` | Одна строка `Dialogue:` для сцены, текст = `"\\N".join(subtitle_lines)`. Используется в hash. |
 | `export_ass(design_spec, scenes, durations) -> Path` | Полный `subtitles.ass` (Script Info + V4+ Styles + Events). |
 | `compute_video_hash(img, audio, ass_block, quality, fps, res) -> str` | sha256 hex. |
 | `render_scene_video(scene, ass_path, preset) -> Path` | Один ffmpeg на сцену. Идемпотентно (hash-чек). Атомарная запись. |
@@ -186,12 +186,14 @@ VIDEO_MAX_RETRIES = 3
 
 ### Dialogue события
 
-Старты/концы накопительно из `effective_durations[i]`:
+Старты/концы накопительно из `effective_durations[i]`. **Текст берётся из `subtitle_lines` (массив строк), НЕ из `voice_text`** — `voice_text` это озвучка (может быть 400+ симв на сцену), `subtitle_lines` это компактное экранное представление (3 строки). Строки объединяются через ASS line-break `\N`.
 
 ```
-Dialogue: 0,0:00:00.00,0:00:03.45,Default,,0,0,0,,{voice_text сцены 1}
-Dialogue: 0,0:00:03.45,0:00:07.12,Default,,0,0,0,,{voice_text сцены 2}
+Dialogue: 0,0:00:00.00,0:00:28.26,Default,,0,0,0,,3 часа ночи.\NТы сидишь в туалете психбольницы,\Nслушая, как кто-то бьётся головой о стену.
+Dialogue: 0,0:00:28.26,0:00:42.10,Default,,0,0,0,,{subtitle_lines сцены 2 через \N}
 ```
+
+Старт/конец одной Dialogue строки = вся сцена. Если в будущей итерации понадобится word-level sync, разбивать на несколько Dialogue внутри сцены.
 
 ### `effective_duration` для видео
 
